@@ -7,7 +7,7 @@
 .auth-container {
     width: 100vw;
     height: 100vh;
-    background: #0a0a0a;
+    background: #fafafa;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -153,6 +153,55 @@
     text-decoration: underline;
     text-underline-offset: 2px;
     transition: color 0.2s;
+}
+
+.auth-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 35px,
+            rgba(255, 255, 255, 0.03) 35px,
+            rgba(255, 255, 255, 0.03) 70px
+    ),
+    repeating-linear-gradient(
+            60deg,
+            transparent,
+            transparent 35px,
+            rgba(255, 255, 255, 0.03) 35px,
+            rgba(255, 255, 255, 0.03) 70px
+    ),
+    repeating-linear-gradient(
+            120deg,
+            transparent,
+            transparent 35px,
+            rgba(255, 255, 255, 0.03) 35px,
+            rgba(255, 255, 255, 0.03) 70px
+    );
+    background-size: 70px 122px;
+    opacity: 0.5;
+}
+
+/* Radial gradient overlay for depth */
+.auth-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+            circle at center,
+            transparent 0%,
+            rgba(0, 0, 0, 0.4) 40%,
+            rgba(0, 0, 0, 0.9) 100%
+    );
+    pointer-events: none;
 }
 
 .switch-btn:hover {
