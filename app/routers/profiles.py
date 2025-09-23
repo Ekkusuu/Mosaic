@@ -3,12 +3,16 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import StudentProfile
+from app.models import StudentProfile, User
 
 router = APIRouter()
 
 @router.post("/", response_model=StudentProfile)
 def create_profile(profile: StudentProfile, session: Session = Depends(get_session)):
+    # check if user exists
+    user = session.get(User, profile.user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="User does not exist")
     session.add(profile)
     session.commit()
     session.refresh(profile)

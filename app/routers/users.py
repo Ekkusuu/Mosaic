@@ -1,23 +1,24 @@
 # app/routers/users.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from app.database import get_session
-from app.models import User
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from passlib.hash import bcrypt
+from app.db import get_session
+from app.models import User, UserCreate, UserRead
 
 router = APIRouter()
 
-@router.post("/", response_model=User)
-def create_user(user: User, session: Session = Depends(get_session)):
-    # NOTE: in production you'd use a request schema (no hashed_password field sent directly)
-    user.hashed_password = pwd_context.hash(user.hashed_password)
+@router.post("/", response_model=UserRead)
+def create_user(user_in: UserCreate, session: Session = Depends(get_session)):
+    # check if email exists
+    existing = session.exec(select(User).where(User.email == user_in.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = User(email=user_in.email, hashed_password=bcrypt.hash(user_in.password))
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
 
-@router.get("/", response_model=list[User])
+@router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):
     return session.exec(select(User)).all()
