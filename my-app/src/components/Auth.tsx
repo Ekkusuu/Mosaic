@@ -35,10 +35,8 @@ const Auth: React.FC = () => {
                 // Login logic
                 const response = await fetch(`${API_BASE_URL}/users/login`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include', // Important for cookies
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({
                         email: formData.email,
                         password: formData.password
@@ -51,25 +49,33 @@ const Auth: React.FC = () => {
                 }
 
                 const userData = await response.json();
-                
-                // Store user data in localStorage
                 localStorage.setItem('user', JSON.stringify(userData));
                 localStorage.setItem('isAuthenticated', 'true');
-                
-                console.log('Login successful:', userData);
                 alert('Login successful!');
             } else {
-                // Register logic
+                // First, validate university email
+                const validateResponse = await fetch(`${API_BASE_URL}/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: formData.email })
+                });
+
+                const validateData = await validateResponse.json();
+
+                if (!validateData.valid) {
+                    throw new Error('Registration failed: invalid university email');
+                }
+
+                // Password match check
                 if (formData.password !== formData.confirmPassword) {
                     throw new Error('Passwords do not match');
                 }
 
+                // Register logic
                 const response = await fetch(`${API_BASE_URL}/users/register`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include', // Important for cookies
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({
                         email: formData.email,
                         password: formData.password,
@@ -83,12 +89,8 @@ const Auth: React.FC = () => {
                 }
 
                 const userData = await response.json();
-                
-                // Store user data in localStorage
                 localStorage.setItem('user', JSON.stringify(userData));
                 localStorage.setItem('isAuthenticated', 'true');
-                
-                console.log('Registration successful:', userData);
                 alert('Registration successful!');
             }
         } catch (err: any) {
@@ -98,6 +100,7 @@ const Auth: React.FC = () => {
             setLoading(false);
         }
     };
+
 
     const togglePasswordVisibility = () => {
         setShowPassword(!showPassword);
