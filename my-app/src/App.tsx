@@ -1,14 +1,17 @@
 import React from 'react';
-import Auth from './components/Auth';
-import HexagonBackground from './components/HexagonBackground';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './App.css';
+import MainPage from './components/MainPage';
+import Auth from './components/Auth';
 
 function App() {
     return (
-        <>
-            <HexagonBackground />
-            <Auth />
-        </>
+        <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<MainPage />} />
+                <Route path="/auth" element={<Auth />} />
+            </Routes>
+        </BrowserRouter>
     );
 }
 
