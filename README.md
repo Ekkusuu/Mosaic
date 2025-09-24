@@ -1,1 +1,1 @@
-# Mozaic
+# Mosaic
