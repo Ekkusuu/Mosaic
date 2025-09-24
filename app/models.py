@@ -4,6 +4,7 @@ from typing import Optional, List
 
 class UserBase(SQLModel):
     email: str
+    name: str
 
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -13,6 +14,10 @@ class User(UserBase, table=True):
 
 class UserCreate(UserBase):
     password: str  # raw password from request
+
+class UserLogin(SQLModel):
+    email: str
+    password: str
 
 class UserRead(UserBase):
     id: int
