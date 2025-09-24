@@ -28,9 +28,6 @@ const Auth: React.FC = () => {
         // Add your API call here
     };
 
-    const togglePasswordVisibility = () => {
-        setShowPassword(!showPassword);
-    };
 
     const switchMode = () => {
         setIsLogin(!isLogin);
@@ -49,11 +46,6 @@ const Auth: React.FC = () => {
             <HexagonBackground />
             <div className="auth-modal">
                 <Logo />
-                <button className="close-btn" aria-label="Close" onClick={() => navigate('/') }>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{color: 'var(--color-muted)'}}>
-                        <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                </button>
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     {!isLogin && (
@@ -110,9 +102,11 @@ const Auth: React.FC = () => {
                                 required
                                 placeholder=" "
                             />
-                            <button type="button" className="clear-btn" onClick={togglePasswordVisibility}>
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{color: 'var(--color-muted)'}}>
-                                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            <button type="button" className="clear-btn" onClick={() => setFormData(prev => ({...prev, password: ''}))}>
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                                     style={{color: 'var(--color-muted)'}}>
+                                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2"
+                                          strokeLinecap="round"/>
                                 </svg>
                             </button>
                         </div>
