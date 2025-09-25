@@ -165,7 +165,7 @@
   filter: invert(1) brightness(2) saturate(0);
 }
 
-.close-btn {
+.sidebar .close-btn {
   width: 32px;
   height: 32px;
   background: transparent;
@@ -179,7 +179,7 @@
   justify-content: center;
 }
 
-.close-btn:hover {
+.sidebar .close-btn:hover {
   background: var(--color-input-bg);
   color: var(--color-text);
 }
@@ -432,7 +432,7 @@
   min-height: 600px;
 }
 
-.section-header {
+.feed .section-header {
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   border: 1px solid var(--color-border);
   border-radius: 16px 16px 0 0;
@@ -441,7 +441,7 @@
   backdrop-filter: blur(10px) saturate(120%);
 }
 
-.section-title {
+.feed .section-title {
   font-size: 24px;
   font-weight: 700;
   margin: 0;
@@ -457,7 +457,7 @@
 }
 
 /* Posts Container */
-.posts-container {
+.feed .posts-container {
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   border: 1px solid var(--color-border);
   border-radius: 0 0 16px 16px;
@@ -468,7 +468,7 @@
 }
 
 /* Notes translucent container – to match posts */
-.notes-container {
+.feed .notes-container {
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   border: 1px solid var(--color-border);
   border-radius: 0 0 16px 16px;
@@ -478,7 +478,7 @@
   backdrop-filter: blur(10px) saturate(120%);
 }
 
-.post-row {
+.feed .post-row {
   background: transparent;
   padding: 20px 24px;
   border-bottom: 1px solid var(--color-border);
@@ -486,7 +486,7 @@
   position: relative;
 }
 
-.post-row::after {
+.feed .post-row::after {
   content: '';
   position: absolute;
   left: 0;
@@ -497,11 +497,11 @@
   transition: background 0.2s ease;
 }
 
-.post-row:hover {
+.feed .post-row:hover {
   background: color-mix(in srgb, var(--color-input-bg) 85%, transparent);
 }
 
-.post-row:hover::after {
+.feed .post-row:hover::after {
   background: var(--color-input-focus);
 }
 
@@ -509,7 +509,7 @@
   border-bottom: none;
 }
 
-.card-stats {
+.feed .card-stats {
   display: flex;
   gap: 16px;
   color: var(--color-muted);
@@ -517,19 +517,19 @@
   margin-bottom: 10px;
 }
 
-.stat {
+.feed .stat {
   display: flex;
   align-items: baseline;
   gap: 4px;
 }
 
-.stat strong {
+.feed .stat strong {
   color: var(--color-text);
   font-weight: 600;
   font-size: 14px;
 }
 
-.card-title {
+.feed .card-title {
   display: block;
   margin: 0 0 12px 0;
   color: var(--color-text);
@@ -540,25 +540,25 @@
   transition: color 0.2s ease;
 }
 
-.card-title:hover {
+.feed .card-title:hover {
   color: var(--color-white);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.card-footer {
+.feed .card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.tags {
+.feed .tags {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
 
-.tag {
+.feed .tag {
   padding: 4px 10px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-panel) 85%, transparent);
@@ -569,25 +569,25 @@
   transition: all 0.2s ease;
 }
 
-.tag:hover {
+.feed .tag:hover {
   background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
   color: var(--color-text);
   border-color: var(--color-input-border);
 }
 
-.time {
+.feed .time {
   color: var(--color-muted);
   font-size: 12px;
 }
 
 /* Notes Grid */
-.card-grid {
+.feed .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
 
-.note-card {
+.feed .note-card {
   padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
@@ -600,7 +600,7 @@
   backdrop-filter: blur(10px) saturate(120%);
 }
 
-.note-card::before {
+.feed .note-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -612,7 +612,7 @@
   transition: opacity 0.2s ease;
 }
 
-.note-card:hover {
+.feed .note-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
   background: color-mix(in srgb, var(--color-input-bg) 85%, transparent);
@@ -622,12 +622,12 @@
   opacity: 1;
 }
 
-.note-card .card-title {
+.feed .note-card .card-title {
   font-size: 15px;
   margin-bottom: 10px;
 }
 
-.note-summary {
+.feed .note-summary {
   color: var(--color-muted);
   font-size: 13px;
   line-height: 1.5;
