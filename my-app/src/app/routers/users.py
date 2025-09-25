@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from passlib.hash import bcrypt
 from app.db import get_session
 from app.models import User, UserCreate, UserRead, UserLogin
+from app.validators import validate_username, validate_password, validate_email_domain
 
 router = APIRouter()
 
@@ -14,8 +15,16 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # validations
+    try:
+        validate_username(user_in.name)
+        validate_password(user_in.password)
+        validate_email_domain(user_in.email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     user = User(
-        email=user_in.email, 
+        email=user_in.email,
         name=user_in.name,
         hashed_password=bcrypt.hash(user_in.password)
     )
