@@ -30,6 +30,23 @@ class StudentProfile(SQLModel, table=True):
     bio: Optional[str] = None
     user: Optional[User] = Relationship(back_populates="profiles")
 
+class StudentProfileCreate(SQLModel):
+    name: str
+    major: Optional[str] = None
+    bio: Optional[str] = None
+
+class StudentProfileUpdate(SQLModel):
+    name: Optional[str] = None
+    major: Optional[str] = None
+    bio: Optional[str] = None
+
+class StudentProfileRead(SQLModel):
+    id: int
+    user_id: int
+    name: str
+    major: Optional[str] = None
+    bio: Optional[str] = None
+
 class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str
