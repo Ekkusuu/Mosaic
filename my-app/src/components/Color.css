@@ -1,0 +1,18 @@
+/* Global color variables for the app. Import this file where colors are needed. */
+:root {
+    /* General purpose color tokens (app-wide). Use these across components. */
+    --color-bg: #fafafa; /* page background */
+    --color-surface: #1a1a1a; /* surface / modal background */
+    --color-border: #2a2a2a; /* generic border */
+    --color-panel: #0a0a0a; /* darker panel used for autofill */
+    --color-input-bg: #2B2B2B; /* input background */
+    --color-input-border: #4F4F4F; /* input border */
+    --color-input-focus: #3a3a3a; /* input focus border */
+    --color-text: #e0e0e0; /* primary text / labels */
+    --color-placeholder: #4a4a4a; /* placeholder text */
+    --color-muted: #666666; /* muted text */
+    --color-muted-2: #999999; /* secondary muted */
+    --color-btn-border: #3a3a3a; /* button border */
+    --color-overlay-line: rgba(255,255,255,0.03); /* overlay lines */
+    --color-white: #ffffff;
+}
