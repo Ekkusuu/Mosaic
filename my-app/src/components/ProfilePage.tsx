@@ -6,6 +6,7 @@ import HexagonBackground from './HexagonBackground';
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const [isEditing, setIsEditing] = useState(false);
+    const [showHonorPopup, setShowHonorPopup] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -14,7 +15,8 @@ const ProfilePage: React.FC = () => {
         university: '',
         year: '',
         speciality: '',
-        avatarUrl: null as string | null
+        avatarUrl: null as string | null,
+        honorLevel: 3 // Default honor level
     });
 
     const [editData, setEditData] = useState(profileData);
@@ -63,6 +65,40 @@ const ProfilePage: React.FC = () => {
     const getInitials = (name: string) => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     };
+
+    // Honor levels data
+    const honorLevels = [
+        {
+            level: 1,
+            name: 'Restricted',
+            benefits: [],
+            restrictions: ['Limited to 10 notes', 'No sharing capabilities', 'Basic upload limit (1MB)', 'No collaboration tools']
+        },
+        {
+            level: 2,
+            name: 'Limited',
+            benefits: [],
+            restrictions: ['Limited to 50 notes', 'Basic sharing only', 'Standard upload limit (5MB)', 'No advanced features']
+        },
+        {
+            level: 3,
+            name: 'Student',
+            benefits: ['Full collaboration suite', 'Priority support', 'Advanced search', 'Unlimited notes'],
+            restrictions: ['None']
+        },
+        {
+            level: 4,
+            name: 'Scholar',
+            benefits: ['Premium templates', 'Advanced analytics', 'Beta features access', 'Priority queue'],
+            restrictions: ['None']
+        },
+        {
+            level: 5,
+            name: 'Master',
+            benefits: ['Unlimited everything', 'Direct developer contact', 'Feature voting rights', 'Custom integrations'],
+            restrictions: ['None']
+        }
+    ];
 
     const publicNotes = [
         {
@@ -159,10 +195,13 @@ const ProfilePage: React.FC = () => {
                                         <span className="stat-number">3</span>
                                         <span>following</span>
                                     </div>
-                                    <div className="honor-level">
-                                        <div className="honor-badge">7</div>
+                                    <button 
+                                        className="honor-level"
+                                        onClick={() => setShowHonorPopup(true)}
+                                    >
+                                        <div className="honor-badge">{profileData.honorLevel}</div>
                                         <span>honor lvl</span>
-                                    </div>
+                                    </button>
                                 </div>
 
                                 <button
@@ -447,6 +486,73 @@ const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Honor Level Popup */}
+            {showHonorPopup && (
+                <div className="honor-popup-overlay" onClick={() => setShowHonorPopup(false)}>
+                    <div className="honor-popup" onClick={(e) => e.stopPropagation()}>
+                        <div className="honor-popup-header">
+                            <h3 className="honor-popup-title">Honor Levels</h3>
+                            <button 
+                                onClick={() => setShowHonorPopup(false)} 
+                                className="modal-close-btn"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="honor-levels-container">
+                            {honorLevels.map((honor) => (
+                                <div 
+                                    key={honor.level} 
+                                    className={`honor-level-card ${honor.level === profileData.honorLevel ? 'current' : ''}`}
+                                >
+                                    <div className="honor-level-header">
+                                        <div className="honor-level-badge">{honor.level}</div>
+                                        <div className="honor-level-name">{honor.name}</div>
+                                        {honor.level === profileData.honorLevel && (
+                                            <div className="current-badge">Current</div>
+                                        )}
+                                    </div>
+                                    <div className="honor-level-content">
+                                        {honor.benefits.length > 0 && (
+                                            <div className="honor-section">
+                                                <h4 className="honor-section-title">Benefits</h4>
+                                                <ul className="honor-list">
+                                                    {honor.benefits.map((benefit, index) => (
+                                                        <li key={index} className="honor-item benefit">
+                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                                <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                            </svg>
+                                                            {benefit}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {honor.restrictions[0] !== 'None' && (
+                                            <div className="honor-section">
+                                                <h4 className="honor-section-title">Restrictions</h4>
+                                                <ul className="honor-list">
+                                                    {honor.restrictions.map((restriction, index) => (
+                                                        <li key={index} className="honor-item restriction">
+                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                                <path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                            </svg>
+                                                            {restriction}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
