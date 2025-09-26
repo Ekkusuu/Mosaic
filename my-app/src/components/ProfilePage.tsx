@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 import HexagonBackground from './HexagonBackground';
+import NotesPopup from './NotesPopup';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const [isEditing, setIsEditing] = useState(false);
     const [showHonorPopup, setShowHonorPopup] = useState(false);
+    const [showFollowersPopup, setShowFollowersPopup] = useState(false);
+    const [showFollowingPopup, setShowFollowingPopup] = useState(false);
+    const [showNotesPopup, setShowNotesPopup] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -89,13 +93,25 @@ const ProfilePage: React.FC = () => {
         {
             level: 4,
             name: 'Scholar',
-            benefits: ['Premium templates', 'Advanced analytics', 'Beta features access', 'Priority queue'],
+            benefits: [
+                '+ All Student benefits',
+                'Premium templates', 
+                'Advanced analytics', 
+                'Beta features access', 
+                'Priority queue'
+            ],
             restrictions: ['None']
         },
         {
             level: 5,
             name: 'Master',
-            benefits: ['Unlimited everything', 'Direct developer contact', 'Feature voting rights', 'Custom integrations'],
+            benefits: [
+                '+ All Scholar benefits',
+                'Direct developer contact', 
+                'Feature voting rights', 
+                'Custom integrations',
+                'Exclusive Master features'
+            ],
             restrictions: ['None']
         }
     ];
@@ -103,50 +119,65 @@ const ProfilePage: React.FC = () => {
     const publicNotes = [
         {
             id: 1,
-            title: 'react-notes',
-            description: 'A comprehensive note-taking app built with React and TypeScript',
-            language: 'javascript',
+            title: 'Linear Algebra - Eigenvalues',
+            description: 'Comprehensive study of eigenvalues, eigenvectors, and diagonalization',
+            subject: 'Mathematics',
             visibility: 'Public'
         },
         {
             id: 2,
-            title: 'design-patterns',
-            description: 'Collection of common design patterns with examples and explanations',
-            language: 'markdown',
+            title: 'World War II - European Theater',
+            description: 'Detailed timeline and analysis of major battles and political decisions',
+            subject: 'History',
             visibility: 'Public'
         },
         {
             id: 3,
-            title: 'api-documentation',
-            description: 'REST API documentation and best practices guide',
-            language: 'markdown',
+            title: 'Thermodynamics - First Law',
+            description: 'Energy conservation principles and applications in various systems',
+            subject: 'Physics',
             visibility: 'Public'
         },
         {
             id: 4,
-            title: 'python-algorithms',
-            description: 'Implementation of various algorithms and data structures in Python',
-            language: 'python',
+            title: 'Data Structures & Algorithms',
+            description: 'Implementation and analysis of trees, graphs, and sorting algorithms',
+            subject: 'Computer Science',
             visibility: 'Public'
         }
     ];
 
     // Mock data for questions
     const userQuestions = [
-        { id: 1, title: 'How do I structure large note collections?', timestamp: '2 hours ago', votes: 4, answers: 2 },
-        { id: 2, title: 'Best way to sync notes across devices?', timestamp: '1 day ago', votes: 7, answers: 5 },
-        { id: 3, title: 'Capturing code snippets with formatting', timestamp: '3 days ago', votes: 3, answers: 1 }
+        { id: 1, title: 'How do you memorize complex chemical formulas effectively?', timestamp: '2 hours ago', votes: 4, answers: 2 },
+        { id: 2, title: 'Best strategies for solving calculus optimization problems?', timestamp: '1 day ago', votes: 7, answers: 5 },
+        { id: 3, title: 'Understanding quantum mechanics - wave-particle duality?', timestamp: '3 days ago', votes: 3, answers: 1 }
     ];
 
     // Mock data for comments
     const userComments = [
-        { id: 1, content: 'Great tip on using tags to filter study sessions!', timestamp: '5 hours ago' },
-        { id: 2, content: 'I prefer markdown for speed; templates help a lot.', timestamp: '2 days ago' },
-        { id: 3, content: 'Would be nice to export as PDF with a TOC.', timestamp: '4 days ago' }
+        { id: 1, content: 'Great explanation of the photosynthesis cycle! Really helped with my bio exam.', timestamp: '5 hours ago' },
+        { id: 2, content: 'The mnemonic for remembering historical dates is brilliant!', timestamp: '2 days ago' },
+        { id: 3, content: 'Could you add more examples for the economic models section?', timestamp: '4 days ago' }
     ];
 
     // Mock data for tags
-    const userTags: string[] = ['react', 'typescript', 'productivity'];
+    const userTags: string[] = ['calculus', 'organic-chemistry', 'study-techniques'];
+
+    // Mock data for followers
+    const followers = [
+        { id: 1, name: 'Alice Johnson', username: 'alicej', avatarUrl: null, bio: 'Full-stack developer passionate about React' },
+        { id: 2, name: 'Bob Smith', username: 'bobsmith', avatarUrl: null, bio: 'CS student, love algorithms and data structures' },
+        { id: 3, name: 'Carol Williams', username: 'carolw', avatarUrl: null, bio: 'UI/UX designer with coding skills' },
+        { id: 4, name: 'David Brown', username: 'davidb', avatarUrl: null, bio: 'Backend engineer, Python enthusiast' }
+    ];
+
+    // Mock data for following
+    const following = [
+        { id: 1, name: 'Emma Davis', username: 'emmad', avatarUrl: null, bio: 'Tech blogger and software architect' },
+        { id: 2, name: 'Frank Miller', username: 'frankm', avatarUrl: null, bio: 'Open source contributor, JavaScript expert' },
+        { id: 3, name: 'Grace Wilson', username: 'gracew', avatarUrl: null, bio: 'Data scientist and machine learning researcher' }
+    ];
 
     // Mock activity data: posts per month for the last 12 months
     // Activity combines notes created, questions asked, comments written (mocked)
@@ -159,11 +190,11 @@ const ProfilePage: React.FC = () => {
             <HexagonBackground />
             <button
                 onClick={() => navigate('/')}
-                className="close-btn"
-                aria-label="Close"
+                className="back-btn"
+                aria-label="Go back"
             >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
             </button>
 
@@ -187,20 +218,26 @@ const ProfilePage: React.FC = () => {
                                 )}
 
                                 <div className="profile-stats">
-                                    <div className="stat-item">
-                                        <span className="stat-number">4</span>
+                                    <button 
+                                        className="stat-item clickable"
+                                        onClick={() => setShowFollowersPopup(true)}
+                                    >
+                                        <span className="stat-number">{followers.length}</span>
                                         <span>followers</span>
-                                    </div>
-                                    <div className="stat-item">
-                                        <span className="stat-number">3</span>
+                                    </button>
+                                    <button 
+                                        className="stat-item clickable"
+                                        onClick={() => setShowFollowingPopup(true)}
+                                    >
+                                        <span className="stat-number">{following.length}</span>
                                         <span>following</span>
-                                    </div>
+                                    </button>
                                     <button 
                                         className="honor-level"
                                         onClick={() => setShowHonorPopup(true)}
                                     >
                                         <div className="honor-badge">{profileData.honorLevel}</div>
-                                        <span>honor lvl</span>
+                                        <span>honor</span>
                                     </button>
                                 </div>
 
@@ -231,16 +268,23 @@ const ProfilePage: React.FC = () => {
                                     </div>
 
                                 <div className="avatar-upload">
-                                    <div className="avatar-preview">
-                                        {editData.avatarUrl ? (
-                                            <img src={editData.avatarUrl} alt="Profile" />
-                                        ) : (
-                                            <span>{getInitials(editData.name)}</span>
-                                        )}
-                                    </div>
-                                    <label className="upload-btn">
-                                        <input type="file" accept="image/*" onChange={handleImageUpload} />
-                                        Change avatar
+                                    <label className="avatar-preview-wrapper">
+                                        <div className="avatar-preview">
+                                            {editData.avatarUrl ? (
+                                                <img src={editData.avatarUrl} alt="Profile" />
+                                            ) : (
+                                                <span>{getInitials(editData.name)}</span>
+                                            )}
+                                        </div>
+                                        <div className="avatar-edit-icon">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z"
+                                                      fill="currentColor"/>
+                                                <path d="m5.738 9.262l3 3"
+                                                      stroke="currentColor" strokeWidth="0.75"/>
+                                            </svg>
+                                        </div>
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="avatar-file-input" />
                                     </label>
                                 </div>
 
@@ -402,9 +446,9 @@ const ProfilePage: React.FC = () => {
                                         </div>
                                         <p className="note-description">{note.description}</p>
                                         <div className="note-meta">
-                                            <div className="note-language">
-                                                <span className={`language-dot ${note.language}`}></span>
-                                                <span>{note.language.charAt(0).toUpperCase() + note.language.slice(1)}</span>
+                                            <div className="note-subject">
+                                                <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
+                                                <span>{note.subject}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -412,7 +456,7 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <button
                                 className="see-all-btn"
-                                onClick={() => console.log('See all my notes - backend implementation needed')}
+                                onClick={() => setShowNotesPopup(true)}
                             >
                                 See all my notes
                             </button>
@@ -493,14 +537,6 @@ const ProfilePage: React.FC = () => {
                     <div className="honor-popup" onClick={(e) => e.stopPropagation()}>
                         <div className="honor-popup-header">
                             <h3 className="honor-popup-title">Honor Levels</h3>
-                            <button 
-                                onClick={() => setShowHonorPopup(false)} 
-                                className="modal-close-btn"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                </svg>
-                            </button>
                         </div>
                         <div className="honor-levels-container">
                             {honorLevels.map((honor) => (
@@ -521,10 +557,16 @@ const ProfilePage: React.FC = () => {
                                                 <h4 className="honor-section-title">Benefits</h4>
                                                 <ul className="honor-list">
                                                     {honor.benefits.map((benefit, index) => (
-                                                        <li key={index} className="honor-item benefit">
-                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                                                <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                                            </svg>
+                                                        <li key={index} className={`honor-item benefit ${benefit.startsWith('+') ? 'inherited' : ''}`}>
+                                                            {benefit.startsWith('+') ? (
+                                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                                    <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                                </svg>
+                                                            ) : (
+                                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                                    <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                                </svg>
+                                                            )}
                                                             {benefit}
                                                         </li>
                                                     ))}
@@ -553,6 +595,73 @@ const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Followers Popup */}
+            {showFollowersPopup && (
+                <div className="follow-popup-overlay" onClick={() => setShowFollowersPopup(false)}>
+                    <div className="follow-popup" onClick={(e) => e.stopPropagation()}>
+                        <div className="follow-popup-header">
+                            <h3 className="follow-popup-title">Followers</h3>
+                        </div>
+                        <div className="follow-list">
+                            {followers.map((user) => (
+                                <div key={user.id} className="follow-item">
+                                    <div className="follow-avatar">
+                                        {user.avatarUrl ? (
+                                            <img src={user.avatarUrl} alt={user.name} />
+                                        ) : (
+                                            user.name.split(' ').map(n => n[0]).join('').toUpperCase()
+                                        )}
+                                    </div>
+                                    <div className="follow-info">
+                                        <div className="follow-name">{user.name}</div>
+                                        <div className="follow-username">@{user.username}</div>
+                                        {user.bio && <div className="follow-bio">{user.bio}</div>}
+                                    </div>
+                                    <button className="follow-btn">Following</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Following Popup */}
+            {showFollowingPopup && (
+                <div className="follow-popup-overlay" onClick={() => setShowFollowingPopup(false)}>
+                    <div className="follow-popup" onClick={(e) => e.stopPropagation()}>
+                        <div className="follow-popup-header">
+                            <h3 className="follow-popup-title">Following</h3>
+                        </div>
+                        <div className="follow-list">
+                            {following.map((user) => (
+                                <div key={user.id} className="follow-item">
+                                    <div className="follow-avatar">
+                                        {user.avatarUrl ? (
+                                            <img src={user.avatarUrl} alt={user.name} />
+                                        ) : (
+                                            user.name.split(' ').map(n => n[0]).join('').toUpperCase()
+                                        )}
+                                    </div>
+                                    <div className="follow-info">
+                                        <div className="follow-name">{user.name}</div>
+                                        <div className="follow-username">@{user.username}</div>
+                                        {user.bio && <div className="follow-bio">{user.bio}</div>}
+                                    </div>
+                                    <button className="follow-btn">Unfollow</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notes Popup */}
+            <NotesPopup 
+                isOpen={showNotesPopup}
+                onClose={() => setShowNotesPopup(false)}
+                notes={publicNotes}
+            />
         </div>
     );
 };
