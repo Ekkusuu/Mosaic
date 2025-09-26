@@ -69,33 +69,48 @@
   position: fixed;
   top: 24px;
   right: 24px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
-  border: 1px solid var(--color-border);
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, 
+    color-mix(in srgb, var(--color-surface) 90%, transparent),
+    color-mix(in srgb, var(--color-input-bg) 85%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, var(--color-white) 20%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 30;
   cursor: pointer;
-  box-shadow: 0 8px 26px rgba(0,0,0,0.18);
-  backdrop-filter: blur(6px) saturate(120%);
-  transition: all 0.2s ease;
+  box-shadow: 
+    0 8px 32px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(255,255,255,0.05) inset,
+    0 1px 0 rgba(255,255,255,0.1) inset;
+  backdrop-filter: blur(12px) saturate(140%);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--color-muted-2);
 }
 
 .profile-btn:hover {
-  background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+  background: linear-gradient(135deg, 
+    color-mix(in srgb, var(--color-input-bg) 95%, transparent),
+    color-mix(in srgb, var(--color-input-focus) 90%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--color-input-border) 60%, var(--color-white) 40%);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 
+    0 16px 40px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(255,255,255,0.1) inset,
+    0 1px 0 rgba(255,255,255,0.15) inset;
+  color: var(--color-white);
 }
 
-.profile-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-input-focus), var(--color-text));
-  display: block;
+.profile-btn svg {
+  transition: all 0.2s ease;
+}
+
+.profile-btn:hover svg {
+  transform: scale(1.1);
 }
 
 /* Overlay */
