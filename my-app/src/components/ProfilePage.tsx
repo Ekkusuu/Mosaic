@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 import HexagonBackground from './HexagonBackground';
 import NotesPopup from './NotesPopup';
+import QuestionPopup from './QuestionPopup';
+import CommentsPopup from './CommentsPopup';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -11,6 +13,8 @@ const ProfilePage: React.FC = () => {
     const [showFollowersPopup, setShowFollowersPopup] = useState(false);
     const [showFollowingPopup, setShowFollowingPopup] = useState(false);
     const [showNotesPopup, setShowNotesPopup] = useState(false);
+    const [showQuestionsPopup, setShowQuestionsPopup] = useState(false);
+    const [showCommentsPopup, setShowCommentsPopup] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -481,7 +485,7 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <button
                                 className="see-all-btn"
-                                onClick={() => console.log('See all my questions - backend implementation needed')}
+                                onClick={() => setShowQuestionsPopup(true)}
                             >
                                 See all my questions
                             </button>
@@ -504,7 +508,7 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <button
                                 className="see-all-btn"
-                                onClick={() => console.log('See all my comments - backend implementation needed')}
+                                onClick={() => setShowCommentsPopup(true)}
                             >
                                 See all my comments
                             </button>
@@ -661,6 +665,20 @@ const ProfilePage: React.FC = () => {
                 isOpen={showNotesPopup}
                 onClose={() => setShowNotesPopup(false)}
                 notes={publicNotes}
+            />
+
+            {/* Questions Popup */}
+            <QuestionPopup 
+                isOpen={showQuestionsPopup}
+                onClose={() => setShowQuestionsPopup(false)}
+                questions={userQuestions}
+            />
+
+            {/* Comments Popup */}
+            <CommentsPopup 
+                isOpen={showCommentsPopup}
+                onClose={() => setShowCommentsPopup(false)}
+                comments={userComments}
             />
         </div>
     );

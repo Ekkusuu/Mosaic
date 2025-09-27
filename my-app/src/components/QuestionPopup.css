@@ -1,0 +1,423 @@
+@import './Color.css';
+
+/* Questions Popup Overlay */
+.questions-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+    padding: 20px;
+}
+
+/* Main Popup Container */
+.questions-popup {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    width: 95%;
+    max-width: 1200px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    animation: slideUp 0.3s ease-out;
+    overflow: hidden;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Popup Header */
+.questions-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    flex-shrink: 0;
+}
+
+.questions-popup-title {
+    color: var(--color-text);
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.questions-popup-stats {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.questions-count {
+    color: var(--color-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.questions-filter {
+    display: flex;
+    gap: 12px;
+}
+
+.questions-popup-close {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--color-muted);
+}
+
+.questions-popup-close:hover {
+    background: var(--color-input-bg);
+    border-color: var(--color-input-focus);
+    color: var(--color-text);
+}
+
+/* Popup Content */
+.questions-popup-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+}
+
+/* Questions List */
+.questions-list-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Individual Question Card */
+.question-card-popup {
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.question-card-popup:hover {
+    background: var(--color-panel);
+    border-color: var(--color-input-focus);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Question Card Header */
+.question-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+
+.question-title-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.question-title-popup {
+    color: var(--color-text);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.question-status {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid var(--color-border);
+}
+
+.question-status.open {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.question-status.answered {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.question-status.closed {
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border-color: rgba(107, 114, 128, 0.3);
+}
+
+/* Question Actions */
+.question-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.question-card-popup:hover .question-actions {
+    opacity: 1;
+}
+
+.question-action-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--color-muted);
+}
+
+.question-action-btn:hover {
+    background: var(--color-surface);
+    border-color: var(--color-input-focus);
+    color: var(--color-text);
+}
+
+/* Question Description */
+.question-description-popup {
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 16px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Question Stats */
+.question-stats-popup {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 13px;
+    color: var(--color-muted);
+    margin-bottom: 12px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stat-item svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.8;
+}
+
+.question-timestamp {
+    font-size: 12px;
+    margin-left: auto;
+}
+
+/* Question Meta Information */
+.question-meta-popup {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-bottom: 12px;
+}
+
+.question-subject-popup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.subject-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.subject-dot.mathematics { 
+    background: #2563eb; 
+}
+
+.subject-dot.physics { 
+    background: #dc2626; 
+}
+
+.subject-dot.chemistry { 
+    background: #16a34a; 
+}
+
+.subject-dot.biology { 
+    background: #059669; 
+}
+
+.subject-dot.computer-science { 
+    background: #7c3aed; 
+}
+
+.subject-dot.economics { 
+    background: #ea580c; 
+}
+
+.subject-dot.psychology { 
+    background: #db2777; 
+}
+
+.subject-dot.history { 
+    background: #b45309; 
+}
+
+.subject-dot.literature { 
+    background: #4338ca; 
+}
+
+.subject-dot.engineering { 
+    background: #374151; 
+}
+
+.subject-dot.medicine { 
+    background: #be123c; 
+}
+
+.subject-dot.law { 
+    background: #1f2937; 
+}
+
+/* Question Tags */
+.question-tags-popup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.question-tag {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted-2);
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .questions-popup {
+        width: 98%;
+        max-height: 90vh;
+        margin: 10px;
+    }
+
+    .questions-popup-header {
+        padding: 20px 24px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .questions-popup-stats {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .questions-filter {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .questions-popup-content {
+        padding: 20px 24px;
+    }
+
+    .question-card-popup {
+        padding: 16px;
+    }
+
+    .question-actions {
+        opacity: 1; /* Always show on mobile */
+    }
+
+    .question-stats-popup {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .question-timestamp {
+        margin-left: 0;
+        order: -1;
+        width: 100%;
+        margin-bottom: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .questions-popup-header {
+        padding: 16px 20px;
+    }
+
+    .questions-popup-content {
+        padding: 16px 20px;
+    }
+
+    .question-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .question-actions {
+        align-self: flex-end;
+    }
+
+    .question-title-popup {
+        font-size: 16px;
+    }
+}
