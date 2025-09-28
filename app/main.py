@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 from app.db import engine
 from app.routers import profiles, files, users  # imports router modules
+from app.routers import chatbot
 
 app = FastAPI(title="Student Knowledge Platform - Backend")
 
@@ -18,6 +19,7 @@ app.add_middleware(
 app.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
 app.include_router(files.router, prefix="/files", tags=["files"])
 app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(chatbot.router, prefix="/chatbot", tags=["chatbot"])
 
 @app.on_event("startup")
 def on_startup():

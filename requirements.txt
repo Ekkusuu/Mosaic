@@ -6,3 +6,4 @@ python-dotenv
 passlib[bcrypt]
 python-multipart
 alembic
+huggingface_hub
