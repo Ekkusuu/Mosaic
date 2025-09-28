@@ -5,6 +5,7 @@ import HexagonBackground from './HexagonBackground';
 import NotesPopup from './NotesPopup';
 import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
+import AIChat from './AIChat';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -188,6 +189,7 @@ const ProfilePage: React.FC = () => {
     const activityData = [3, 5, 2, 7, 6, 4, 8, 9, 5, 10, 6, 12];
 
     const maxActivity = Math.max(...activityData, 1);
+    const [showChat, setShowChat] = useState(false);
 
     return (
         <div className="profile-container">
@@ -530,6 +532,21 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        {/* AI Chat Section Toggle */}
+                        <div className="content-section">
+                            <div className="section-header">
+                                <h2 className="section-title">AI Assistant</h2>
+                                <button className="see-all-btn" type="button" onClick={() => setShowChat(v => !v)}>
+                                    {showChat ? 'Hide chat' : 'Open chat'}
+                                </button>
+                            </div>
+                            {showChat && (
+                                <div className="ai-chat-wrapper">
+                                    <AIChat />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

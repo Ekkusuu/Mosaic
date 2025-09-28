@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './MainPage.css';
 import Logo from './Logo';
 import HexagonBackground from './HexagonBackground';
+import AIChat from './AIChat';
 
 // Navbar Component
 interface NavItem {
@@ -118,11 +119,6 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose }) => {
 const MainPage: React.FC = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'notes' | 'ai'>('posts');
-  const [chatMessages, setChatMessages] = useState<{ id: number; role: 'user' | 'assistant'; content: string }[]>([
-    { id: 1, role: 'assistant', content: 'Hi! I\'m Mosaic AI. How can I help?' }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const openNav = () => setIsNavOpen(true);
@@ -300,74 +296,7 @@ const MainPage: React.FC = () => {
             ) : (
               <>
                 <div className="section-header"><h2 className="section-title">Mosaic AI Assistant</h2><div className="section-subtitle">Ask questions about posts, notes, or anything technical.</div></div>
-                <div className="ai-chat-container">
-                  <div className="ai-messages">
-                    {chatMessages.map(m => (
-                      <div key={m.id} className={`ai-message ${m.role}`}>
-                        <div className="bubble">{m.content}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <form
-                    className="ai-input-row"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const trimmed = chatInput.trim();
-                      if (!trimmed) return;
-                      const userMsg = { id: Date.now(), role: 'user' as const, content: trimmed };
-                      setChatMessages(prev => [...prev, userMsg, { id: Date.now() + 1, role: 'assistant', content: 'This is a placeholder response. Wire me to your backend when ready.' }]);
-                      setChatInput('');
-                      setAttachedFiles([]);
-                    }}
-                  >
-                    <input
-                      id="ai-file-input"
-                      type="file"
-                      multiple
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (files.length) {
-                          setAttachedFiles(prev => {
-                            const existing = new Set(prev.map(f => f.name + f.size));
-                            const uniques = files.filter(f => !existing.has(f.name + f.size));
-                            return [...prev, ...uniques];
-                          });
-                        }
-                        e.currentTarget.value = '';
-                      }}
-                    />
-                    <button
-                      className="ai-attach"
-                      type="button"
-                      aria-label="Attach files"
-                      title={attachedFiles.length ? `${attachedFiles.length} file(s) selected` : 'Attach files'}
-                      onClick={() => {
-                        const el = document.getElementById('ai-file-input') as HTMLInputElement | null;
-                        el?.click();
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 1 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48" />
-                      </svg>
-                      {attachedFiles.length > 0 && (
-                        <span className="ai-attach-count" aria-hidden>{attachedFiles.length}</span>
-                      )}
-                    </button>
-                    <input
-                      className="ai-input"
-                      placeholder="Message Mosaic AI..."
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                    />
-                    <button className="ai-send" type="submit" aria-label="Send">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 2L11 13" />
-                        <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-                      </svg>
-                    </button>
-                  </form>
-                </div>
+                <AIChat />
               </>
             )}
           </section>
