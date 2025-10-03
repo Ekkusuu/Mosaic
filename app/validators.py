@@ -11,9 +11,9 @@ import json
 import re
 from functools import lru_cache
 
-# Relative path: this file lives in my-app/src/app/
-# universities.json is in my-app/src/assets/universities.json
-UNIVERSITIES_JSON_PATH = Path(__file__).resolve().parent.parent / "assets" / "universities.json"
+# Resolve universities.json which (in current project layout) sits alongside other app modules
+# If you later move it, adjust this to the new relative location.
+UNIVERSITIES_JSON_PATH = Path(__file__).resolve().parent / "universities.json"
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{3,30}$")
 
@@ -86,6 +86,4 @@ def email_domain_allowed(email: str) -> bool:
 
 def validate_email_domain(email: str):
     if not email_domain_allowed(email):
-        allowed_sample = list(get_allowed_email_domains())[:5]
-        hint = f" Example allowed domains: {', '.join(allowed_sample)}" if allowed_sample else ""
-        raise ValueError("Email domain not allowed." + hint)
+        raise ValueError("Only university email addresses are allowed.")
