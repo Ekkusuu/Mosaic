@@ -60,7 +60,16 @@ function createPerlin() {
 
 const perlin = createPerlin();
 
-const HexagonBackground: React.FC = () => {
+interface HexagonBackgroundProps {
+    /** Target max frames per second (default 30). Lower = less GPU usage */
+    fps?: number;
+    /** Quality scalar (1 = full; 0.75 / 0.5 reduces number of hexagons) */
+    quality?: number;
+    /** Pause animation entirely (renders static first frame) */
+    paused?: boolean;
+}
+
+const HexagonBackground: React.FC<HexagonBackgroundProps> = ({ fps = 30, quality = 1, paused = false }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationRef = useRef<number | null>(null);
     const hexagonsRef = useRef<Array<{
@@ -69,6 +78,10 @@ const HexagonBackground: React.FC = () => {
         fillLevel: number;
         targetFillLevel: number;
     }>>([]);
+    const lastFrameTimeRef = useRef<number>(0);
+    const gradientRef = useRef<CanvasGradient | null>(null);
+    const hexPathRef = useRef<Path2D | null>(null);
+    const visibleRef = useRef<boolean>(true);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -77,26 +90,42 @@ const HexagonBackground: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        const dpr = window.devicePixelRatio || 1;
         const setCanvasSize = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            const ctx2 = canvas.getContext('2d');
+            if (ctx2) ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+            // Rebuild gradient on resize
+            gradientRef.current = null;
         };
         setCanvasSize();
 
         // Hexagon sizing
-        const hexRadius = 18;
+    const baseHexRadius = 18;
+    const hexRadius = baseHexRadius * quality; // scale size with quality
         const hexHeight = hexRadius * 2;
         const hexWidth = Math.sqrt(3) * hexRadius;
         const vertDist = hexHeight * 3 / 4;
         const horizDist = hexWidth;
 
         const buildGrid = () => {
-            const cols = Math.ceil(canvas.width / horizDist) + 6;
-            const rows = Math.ceil(canvas.height / vertDist) + 6;
+            const logicalW = canvas.width / (window.devicePixelRatio || 1);
+            const logicalH = canvas.height / (window.devicePixelRatio || 1);
+            const cols = Math.ceil(logicalW / horizDist) + 4;
+            const rows = Math.ceil(logicalH / vertDist) + 4;
             hexagonsRef.current = [];
-
-            for (let row = -3; row < rows; row++) {
-                for (let col = -3; col < cols; col++) {
+            for (let row = -2; row < rows; row++) {
+                for (let col = -2; col < cols; col++) {
+                    // Skip some hexes for quality reduction (simple stride)
+                    if (quality < 1) {
+                        const stride = quality >= 0.75 ? 1 : quality >= 0.5 ? 2 : 3;
+                        if ((row + col) % stride !== 0) continue;
+                    }
                     const x = col * horizDist + (row % 2) * (horizDist / 2);
                     const y = row * vertDist;
                     hexagonsRef.current.push({ x, y, fillLevel: 0, targetFillLevel: 0 });
@@ -105,46 +134,65 @@ const HexagonBackground: React.FC = () => {
         };
         buildGrid();
 
-        const drawHexagon = (x: number, y: number, radius: number, fillLevel: number) => {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.beginPath();
+        const buildHexPath = () => {
+            if (hexPathRef.current) return;
+            const p = new Path2D();
             for (let i = 0; i < 6; i++) {
                 const angle = (Math.PI / 3) * i - Math.PI / 6;
-                const hx = radius * Math.cos(angle);
-                const hy = radius * Math.sin(angle);
-                if (i === 0) ctx.moveTo(hx, hy);
-                else ctx.lineTo(hx, hy);
+                const hx = hexRadius * Math.cos(angle);
+                const hy = hexRadius * Math.sin(angle);
+                if (i === 0) p.moveTo(hx, hy); else p.lineTo(hx, hy);
             }
-            ctx.closePath();
+            p.closePath();
+            hexPathRef.current = p;
+        };
+        buildHexPath();
 
-            // Grayscale color interpolation (black <-> white) for monochrome hexagons
+        const drawHexagon = (x: number, y: number, fillLevel: number) => {
+            if (!hexPathRef.current) return;
+            ctx.save();
+            ctx.translate(x, y);
             const t = fillLevel; // 0..1
-            const r = Math.round(MIN_RGB.r + (MAX_RGB.r - MIN_RGB.r) * t);
-            const g = Math.round(MIN_RGB.g + (MAX_RGB.g - MIN_RGB.g) * t);
-            const b = Math.round(MIN_RGB.b + (MAX_RGB.b - MIN_RGB.b) * t);
-
             if (t > 0.01) {
+                const r = Math.round(MIN_RGB.r + (MAX_RGB.r - MIN_RGB.r) * t);
+                const g = Math.round(MIN_RGB.g + (MAX_RGB.g - MIN_RGB.g) * t);
+                const b = Math.round(MIN_RGB.b + (MAX_RGB.b - MIN_RGB.b) * t);
                 ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                ctx.fill();
+                ctx.fill(hexPathRef.current);
             }
-
             ctx.strokeStyle = 'rgba(0,0,0,0.12)';
             ctx.lineWidth = 1;
-            ctx.stroke();
+            ctx.stroke(hexPathRef.current);
             ctx.restore();
         };
 
-        const animate = (_now: number) => {
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // subtle neutral gray gradient background
+        const ensureGradient = () => {
+            if (gradientRef.current) return;
             const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
             grad.addColorStop(0, '#f6f6f6');
             grad.addColorStop(1, '#e8e8e8');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            gradientRef.current = grad;
+        };
+
+        const animate = (_now: number) => {
+            if (paused || !visibleRef.current) {
+                animationRef.current = requestAnimationFrame(animate);
+                return;
+            }
+            const now = performance.now();
+            const minDelta = 1000 / fps;
+            if (now - lastFrameTimeRef.current < minDelta) {
+                animationRef.current = requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTimeRef.current = now;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ensureGradient();
+            if (gradientRef.current) {
+                ctx.fillStyle = gradientRef.current;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // faster time factor for snappier animation
             const time = _now * 0.003;
@@ -180,7 +228,7 @@ const HexagonBackground: React.FC = () => {
                 return max === 0 ? 0 : sum / max; // result roughly -1..1
             };
 
-            hexagonsRef.current.forEach((hex) => {
+            for (const hex of hexagonsRef.current) {
                 // Map hex position into noise space
                 const nx = (hex.x + canvas.width / 2) * baseScale;
                 const ny = (hex.y + canvas.height / 2) * baseScale;
@@ -199,8 +247,8 @@ const HexagonBackground: React.FC = () => {
                 hex.fillLevel += (hex.targetFillLevel - hex.fillLevel) * smooth;
                 hex.fillLevel = Math.max(0, Math.min(1, hex.fillLevel));
 
-                drawHexagon(hex.x, hex.y, hexRadius, hex.fillLevel);
-            });
+                drawHexagon(hex.x, hex.y, hex.fillLevel);
+            }
 
             animationRef.current = requestAnimationFrame(animate);
         };
@@ -210,14 +258,19 @@ const HexagonBackground: React.FC = () => {
             buildGrid();
         };
 
+        const onVisibility = () => {
+            visibleRef.current = document.visibilityState === 'visible';
+        };
         window.addEventListener('resize', handleResize);
+        document.addEventListener('visibilitychange', onVisibility);
         animationRef.current = requestAnimationFrame(animate);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('visibilitychange', onVisibility);
             if (animationRef.current) cancelAnimationFrame(animationRef.current);
         };
-    }, []);
+    }, [fps, quality, paused]);
 
     return (
         <canvas
