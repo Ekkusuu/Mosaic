@@ -32,7 +32,8 @@ def create_profile(
     existing = session.exec(select(StudentProfile).where(StudentProfile.user_id == user.id)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Profile already exists")
-    profile = StudentProfile(user_id=user.id, **payload.model_dump())
+    profile_data = payload.model_dump(exclude_unset=True)
+    profile = StudentProfile(user_id=user.id, **profile_data)
     session.add(profile)
     session.commit()
     session.refresh(profile)
@@ -42,8 +43,12 @@ def create_profile(
 def list_profiles(q: Optional[str] = Query(None, description="search term"), session: Session = Depends(get_session)):
     stmt = select(StudentProfile)
     if q:
+        like = f"%{q}%"
         stmt = select(StudentProfile).where(
-            (StudentProfile.name.ilike(f"%{q}%")) | (StudentProfile.bio.ilike(f"%{q}%"))
+            (StudentProfile.name.ilike(like)) |
+            (StudentProfile.username.ilike(like)) |
+            (StudentProfile.bio.ilike(like)) |
+            (StudentProfile.university.ilike(like))
         )
     results = session.exec(stmt).all()
     return results
