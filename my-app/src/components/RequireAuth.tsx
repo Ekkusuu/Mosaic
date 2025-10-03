@@ -21,22 +21,22 @@ interface Props {
   fallbackIntervalMs?: number;
 }
 
-// Strategy:
+// Strategy (reduced CPU):
 // 1. Initial check on mount.
-// 2. Re-check on tab focus & when document becomes visible.
-// 3. Fallback passive re-check every 10 minutes (configurable) in case user stays focused continuously.
-// 4. No tight 1-2 second polling loop.
-const DEFAULT_FALLBACK_INTERVAL = 10 * 60 * 1000; // 10 minutes
+// 2. Re-check ONLY on visibility/focus if last check is older than a throttle window.
+// 3. No continuous interval (removes background timers entirely).
+// 4. Throttle window default: 2 minutes (configurable via prop if needed in future).
+const THROTTLE_MS = 2 * 60 * 1000; // 2 minutes
 
-export default function RequireAuth({ children, fallbackIntervalMs = DEFAULT_FALLBACK_INTERVAL }: Props) {
+export default function RequireAuth({ children }: Props) {
   const [status, setStatus] = useState<Status>('pending');
   const guardActive = useRef(true);
   const lastCheckRef = useRef<number>(0);
 
   const performCheck = async () => {
-    // Debounce accidental rapid calls (e.g., double focus events)
     const now = Date.now();
-    if (now - lastCheckRef.current < 500) return; // ignore if last check < 500ms ago
+    // Throttle: skip if last check was recent (< THROTTLE_MS)
+    if (lastCheckRef.current && (now - lastCheckRef.current) < THROTTLE_MS) return;
     lastCheckRef.current = now;
     try {
       const res = await fetch(`${API_BASE_URL}/users/me`, {
@@ -95,18 +95,12 @@ export default function RequireAuth({ children, fallbackIntervalMs = DEFAULT_FAL
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
 
-    // Passive long interval fallback (in case user never changes focus/visibility)
-    const fallbackId = window.setInterval(() => {
-      performCheck();
-    }, fallbackIntervalMs);
-
     return () => {
       guardActive.current = false;
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
-      window.clearInterval(fallbackId);
     };
-  }, [fallbackIntervalMs]);
+  }, []);
 
   if (status === 'pending') return null;
 
