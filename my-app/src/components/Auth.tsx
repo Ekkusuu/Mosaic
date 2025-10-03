@@ -8,7 +8,7 @@ const API_BASE_URL = 'http://localhost:8000';
 
 const Auth: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);
-    const [showPassword, setShowPassword] = useState(false);
+    const [showPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
@@ -54,13 +54,8 @@ const Auth: React.FC = () => {
                 }
 
                 const userData = await response.json();
-                
-                // Store user data in localStorage
-                localStorage.setItem('user', JSON.stringify(userData));
-                localStorage.setItem('isAuthenticated', 'true');
-                
                 console.log('Login successful:', userData);
-                alert('Login successful!');
+                navigate('/', { replace: true });
             } else {
                 // Register logic
                 if (formData.password !== formData.confirmPassword) {
@@ -86,13 +81,8 @@ const Auth: React.FC = () => {
                 }
 
                 const userData = await response.json();
-                
-                // Store user data in localStorage
-                localStorage.setItem('user', JSON.stringify(userData));
-                localStorage.setItem('isAuthenticated', 'true');
-                
                 console.log('Registration successful:', userData);
-                alert('Registration successful!');
+                navigate('/', { replace: true });
             }
         } catch (err: any) {
             setError(err.message);
