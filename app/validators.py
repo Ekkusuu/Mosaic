@@ -11,9 +11,10 @@ import json
 import re
 from functools import lru_cache
 
-# Relative path: this file lives in my-app/src/app/
-# universities.json is in my-app/src/assets/universities.json
-UNIVERSITIES_JSON_PATH = Path(__file__).resolve().parent.parent / "assets" / "universities.json"
+# Relative paths for this repository layout:
+# - This file: app/validators.py
+# - universities.json: app/assets/universities.json
+UNIVERSITIES_JSON_PATH = Path(__file__).resolve().parent / "assets" / "universities.json"
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]{3,30}$")
 
