@@ -26,3 +26,5 @@ dist-ssr
 # Python virtual environments
 venv/
 .venv/
+
+cookiejar.txt
