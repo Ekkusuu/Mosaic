@@ -30,28 +30,43 @@ class UserRead(UserBase):
 
 class StudentProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
-    name: str
-    major: Optional[str] = None
+    user_id: int = Field(foreign_key="user.id", index=True)
+    # Optional display name separate from account 'name'
+    name: Optional[str] = None
+    username: Optional[str] = None  # kept nullable; can mirror User.name or be customized later
+    university: Optional[str] = None  # auto-populated from email domain
+    year: Optional[str] = None
+    specialty: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None  # path or URL to stored avatar image
     user: Optional[User] = Relationship(back_populates="profiles")
 
 class StudentProfileCreate(SQLModel):
-    name: str
-    major: Optional[str] = None
+    # All optional; creation is mostly automatic
+    name: Optional[str] = None
+    username: Optional[str] = None
+    year: Optional[str] = None
+    specialty: Optional[str] = None
     bio: Optional[str] = None
 
 class StudentProfileUpdate(SQLModel):
     name: Optional[str] = None
-    major: Optional[str] = None
+    username: Optional[str] = None
+    year: Optional[str] = None
+    specialty: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class StudentProfileRead(SQLModel):
     id: int
     user_id: int
-    name: str
-    major: Optional[str] = None
+    name: Optional[str] = None
+    username: Optional[str] = None
+    university: Optional[str] = None
+    year: Optional[str] = None
+    specialty: Optional[str] = None
     bio: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
