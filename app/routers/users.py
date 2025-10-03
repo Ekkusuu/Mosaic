@@ -24,9 +24,8 @@ from app.email_utils import send_verification_email
 load_dotenv()
 SECRET_KEY = os.getenv("JWT_SECRET", "")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1"))
-EMAIL_CODE_EXPIRATION_MINUTES = int(os.getenv("EMAIL_CODE_EXPIRATION_MINUTES", "15"))
-VERIFICATION_CODE_LENGTH = 6
+# Default token lifetime: 4 hours (240 minutes) unless overridden via env var
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "240"))
 
 
 def create_access_token(*, data: dict, expires_delta: timedelta | None = None) -> str:
@@ -53,9 +52,9 @@ def set_auth_cookie(response: Response, token: str) -> None:
         key="access_token",
         value=token,
         httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
         samesite="lax",
-        secure=False,
+        secure=False,  # set True if served over HTTPS
         path="/",
     )
 
