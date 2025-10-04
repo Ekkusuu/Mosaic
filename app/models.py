@@ -70,9 +70,14 @@ class StudentProfileRead(SQLModel):
 
 class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    filename: str
-    filepath: str
+    filename: str  # original user-provided filename (not trusted for storage path)
+    filepath: str  # absolute or configured storage path
     owner_id: int = Field(foreign_key="user.id")
+    content_type: Optional[str] = None
+    size: Optional[int] = None  # bytes
+    checksum_sha256: Optional[str] = None
+    visibility: str = Field(default="private")  # private|public|unlisted
+    uploaded_at: Optional[str] = None  # ISO timestamp
     owner: Optional[User] = Relationship(back_populates="files")
 
 # Email verification models
