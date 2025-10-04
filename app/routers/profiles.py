@@ -13,14 +13,16 @@ from app.models import (
 
 router = APIRouter()
 
+# Reuse the central JWT-based auth from users router to keep a single source of truth.
+try:
+    from app.routers.users import get_user_from_token as _jwt_current_user  # type: ignore
+except Exception:  # Fallback (should not normally happen)
+    _jwt_current_user = None  # type: ignore
+
 def _current_user(request: Request, session: Session) -> User:
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    user = session.get(User, int(user_id))
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
+    if _jwt_current_user is None:
+        raise HTTPException(status_code=500, detail="Auth subsystem unavailable")
+    return _jwt_current_user(request, session)
 
 @router.post("/", response_model=StudentProfileRead)
 def create_profile(
