@@ -10,6 +10,8 @@ import os
 import stat
 import tempfile
 import hashlib
+import zstandard as zstd
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +36,20 @@ from app.models import File as FileModel, User
 MAX_SINGLE_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_SIZE", str(25 * 1024 * 1024)))  # 25 MB default
 MAX_USER_TOTAL_BYTES = int(os.getenv("MAX_USER_STORAGE", str(200 * 1024 * 1024)))   # 200 MB per user
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".md"}
+ENABLE_COMPRESSION = os.getenv("FILE_COMPRESSION", "true").lower() == "true"
+COMPRESSION_LEVEL = int(os.getenv("ZSTD_LEVEL", "6"))
+ENCRYPTION_KEY_HEX = os.getenv("FILE_ENCRYPTION_KEY")  # 64 hex chars for 32 bytes
+ENABLE_ENCRYPTION = bool(ENCRYPTION_KEY_HEX)
+if ENABLE_ENCRYPTION:
+    try:
+        _raw_key = bytes.fromhex(ENCRYPTION_KEY_HEX)
+        if len(_raw_key) != 32:
+            raise ValueError("Encryption key must be 32 bytes (64 hex chars)")
+        AES_GCM = AESGCM(_raw_key)
+    except Exception as e:
+        raise RuntimeError(f"Invalid FILE_ENCRYPTION_KEY: {e}")
+else:
+    AES_GCM = None  # type: ignore
 ALLOWED_MIME_PREFIXES = {"image/", "text/", "application/pdf"}
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads")).resolve()
@@ -48,15 +64,15 @@ def _ensure_upload_dir():
 
 _ensure_upload_dir()
 
+try:
+    from app.routers.users import get_user_from_token as _jwt_current_user  # type: ignore
+except Exception:
+    _jwt_current_user = None  # type: ignore
+
 def _current_user(request: Request, session: Session) -> User:
-    # Expect access_token cookie decoded elsewhere; minimal stub for now
-    token_user_id = request.cookies.get("user_id")
-    if not token_user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    user = session.get(User, int(token_user_id))
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
+    if _jwt_current_user is None:
+        raise HTTPException(status_code=500, detail="Auth subsystem unavailable")
+    return _jwt_current_user(request, session)
 
 def _user_storage_bytes(session: Session, user_id: int) -> int:
     total = 0
@@ -93,14 +109,24 @@ def _sniff_magic(data: bytes) -> str:
         return "text/plain"
     return "application/octet-stream"
 
-def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, str, str]:
-    # Returns (final_path, size, content_type, checksum)
+def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, str, str, bool, bool, Optional[bytes], Optional[bytes]]:
+    # Returns (final_path, size, content_type, checksum, compressed, encrypted, nonce, tag)
     tmp_fd, tmp_path = tempfile.mkstemp(dir=dest_dir)
     sha256 = hashlib.sha256()
     size = 0
     first_chunk = b""
+    compressor: Optional[zstd.ZstdCompressor] = None
+    compressed = False
+    encrypted = False
+    nonce: Optional[bytes] = None
+    tag: Optional[bytes] = None
     try:
         with os.fdopen(tmp_fd, "wb") as tmp_file:
+            if ENABLE_COMPRESSION:
+                compressor = zstd.ZstdCompressor(level=COMPRESSION_LEVEL)
+                cstream = compressor.stream_writer(tmp_file)
+            else:
+                cstream = tmp_file  # type: ignore
             # Read in chunks
             while True:
                 chunk = stream.read(64 * 1024)
@@ -112,16 +138,33 @@ def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, 
                 if size > MAX_SINGLE_UPLOAD_BYTES:
                     raise HTTPException(status_code=413, detail="File too large")
                 sha256.update(chunk)
-                tmp_file.write(chunk)
-            tmp_file.flush()
-            os.fsync(tmp_file.fileno())
+                cstream.write(chunk)
+            if ENABLE_COMPRESSION:
+                cstream.flush(zstd.FLUSH_FRAME)
+                compressed = True
+            # At this point file on disk has raw or compressed bytes. If encryption enabled, re-open and encrypt in-place to new temp.
+        if ENABLE_ENCRYPTION and AES_GCM:
+            # Read back original temp contents
+            with open(tmp_path, 'rb') as rf:
+                plaintext = rf.read()
+            nonce = secrets.token_bytes(12)
+            ciphertext = AES_GCM.encrypt(nonce, plaintext, None)
+            # Layout: nonce | ciphertext
+            # (AESGCM in cryptography appends tag automatically to ciphertext tail)
+            with open(tmp_path, 'wb') as wf:
+                wf.write(nonce + ciphertext)
+            encrypted = True
+            # Extract tag (last 16 bytes of ciphertext)
+            tag = ciphertext[-16:]
+        with open(tmp_path, 'ab') as wf:
+            os.fsync(wf.fileno())
         # Sniff type from first chunk
         content_type = _sniff_magic(first_chunk)
         _validate_content_type(content_type)
         final_path = dest_dir / stored_name
         os.replace(tmp_path, final_path)  # atomic move
         os.chmod(final_path, stat.S_IRUSR | stat.S_IWUSR)  # 600
-        return final_path, size, content_type, sha256.hexdigest()
+        return final_path, size, content_type, sha256.hexdigest(), compressed, encrypted, nonce, tag
     except Exception:
         try:
             os.remove(tmp_path)
@@ -160,7 +203,7 @@ def upload_file(
     stored_name = f"{stored_token}{ext}"
 
     # Stream + atomic write
-    final_path, size, content_type, checksum = _atomic_write(file.file, UPLOAD_DIR, stored_name)
+    final_path, size, content_type, checksum, compressed, encrypted, nonce, tag = _atomic_write(file.file, UPLOAD_DIR, stored_name)
 
     if used + size > MAX_USER_TOTAL_BYTES:
         # Rollback file if quota exceeded mid-upload
@@ -179,6 +222,7 @@ def upload_file(
         checksum_sha256=checksum,
         visibility=visibility if visibility in {"private", "public", "unlisted"} else "private",
         uploaded_at=datetime.utcnow().isoformat() + "Z",
+        # store flags & encryption metadata encoded in filename path or separate columns (simplest: extend model later if needed)
     )
     try:
         session.add(db_file)
@@ -211,13 +255,47 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
     if not path.exists():
         raise HTTPException(status_code=410, detail="File missing")
 
+    # Read + fully process BEFORE starting response so errors become proper JSON and
+    # not mid-stream 500s caused by generator exceptions.
+    try:
+        raw = path.read_bytes()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Could not read file")
+
+    payload = raw
+
+    # Decrypt first (file layout if encrypted: nonce(12) | ciphertext+tag )
+    if ENABLE_ENCRYPTION and AES_GCM:
+        if len(raw) < 13:
+            raise HTTPException(status_code=500, detail="Corrupt encrypted file")
+        nonce_local = raw[:12]
+        ciphertext = raw[12:]
+        try:
+            payload = AES_GCM.decrypt(nonce_local, ciphertext, None)
+        except Exception:
+            # Likely key rotation / mismatch or tampering.
+            raise HTTPException(status_code=410, detail="Unable to decrypt (key mismatch or corrupt)")
+
+    # Decompress if enabled (best effort; if fails treat as raw)
+    if ENABLE_COMPRESSION:
+        try:
+            dctx = zstd.ZstdDecompressor()
+            payload = dctx.decompress(payload)
+        except Exception:
+            # If compression flag enabled but data not compressed (legacy file), continue.
+            pass
+
+    # Verify checksum (payload should represent original logical content)
+    if file_obj.checksum_sha256:
+        calc = hashlib.sha256(payload).hexdigest()
+        if calc != file_obj.checksum_sha256:
+            # Content integrity failed (tamper or corruption after encryption/decompression pipeline)
+            raise HTTPException(status_code=500, detail="Checksum verification failed")
+
     def iterfile():
-        with path.open('rb') as f:
-            while True:
-                chunk = f.read(64 * 1024)
-                if not chunk:
-                    break
-                yield chunk
+        view = memoryview(payload)
+        for offset in range(0, len(view), 64 * 1024):
+            yield view[offset: offset + 64 * 1024]
 
     headers = {
         "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
