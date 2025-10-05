@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, BackgroundTasks, status
 from sqlmodel import Session, select
-from app.security import hash_password, verify_password
+from app.security import hash_password, verify_and_optionally_rehash
 from app.db import get_session
 from app.models import User, UserCreate, UserRead, UserLogin, StudentProfile
 from app.validators import validate_username, validate_password, validate_email_domain
@@ -176,8 +176,15 @@ def login_user(login_data: UserLogin, response: Response, session: Session = Dep
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
     
-    if not verify_password(login_data.password, user.hashed_password):
+    verified, maybe_new_hash = verify_and_optionally_rehash(login_data.password, user.hashed_password)
+    if not verified:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if maybe_new_hash:
+        # Upgrade stored hash (cost factor increased)
+        user.hashed_password = maybe_new_hash
+        session.add(user)
+        session.commit()
+        session.refresh(user)
     
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
