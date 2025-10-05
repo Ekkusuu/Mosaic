@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, BackgroundTasks, status
 from sqlmodel import Session, select
-from app.security import hash_password, verify_and_optionally_rehash
+from app.security import hash_password, verify_password
 from app.db import get_session
 from app.models import User, UserCreate, UserRead, UserLogin, StudentProfile
 from app.validators import validate_username, validate_password, validate_email_domain
@@ -146,10 +146,14 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Race-safe uniqueness: rely on DB unique constraint; pre-check to give nicer error
-    existing = session.exec(select(User).where(User.email == email)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    user = User(
+        email=user_in.email,
+        name=user_in.name,
+        hashed_password=hash_password(user_in.password)
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
 
     hashed = hash_password(user_in.password)
 
@@ -187,32 +191,11 @@ def login_user(login_data: UserLogin, response: Response, session: Session = Dep
     now = datetime.now(timezone.utc)
 
     if not user:
-        raise invalid_error
-
-    # Check lockout
-    if user.locked_until and user.locked_until > now:
-        raise HTTPException(status_code=423, detail="Account temporarily locked. Try later")
-
-    verified, maybe_new_hash = verify_and_optionally_rehash(login_data.password, user.hashed_password)
-    if not verified:
-        user.failed_login_attempts += 1
-        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
-            user.locked_until = now + timedelta(minutes=ACCOUNT_LOCK_MINUTES)
-            user.failed_login_attempts = 0  # reset counter after locking
-        session.add(user)
-        session.commit()
-        raise invalid_error
-
-    # Successful login: reset counters, maybe upgrade hash
-    user.failed_login_attempts = 0
-    user.locked_until = None
-    if maybe_new_hash:
-        user.hashed_password = maybe_new_hash
-    user.last_login_at = now
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if not verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
     return user
