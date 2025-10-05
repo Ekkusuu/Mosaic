@@ -130,62 +130,12 @@ def validate_registration(user_in: UserCreate, session: Session = Depends(get_se
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    return MessageResponse(message="Registration data is valid")
-
-
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
-def register_user(
-    user_in: UserCreate,
-    background_tasks: BackgroundTasks,
-    session: Session = Depends(get_session),
-) -> MessageResponse:
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing and existing.is_verified:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    try:
-        validate_username(user_in.name)
-        validate_password(user_in.password)
-        validate_email_domain(user_in.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    verification_code = generate_verification_code()
-    verification_hash = hash_password(verification_code)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
-
-    if existing and not existing.is_verified:
-        existing.name = user_in.name
-        existing.hashed_password = hash_password(user_in.password)
-        existing.is_verified = False
-        user = existing
-    else:
-        user = User(
-            email=user_in.email,
-            name=user_in.name,
-            hashed_password=hash_password(user_in.password),
-            is_verified=False,
-        )
-        session.add(user)
-
-    session.flush()
-
-    verification = session.exec(
-        select(EmailVerification).where(EmailVerification.user_id == user.id)
-    ).first()
-
-    if verification:
-        verification.code_hash = verification_hash
-        verification.expires_at = expires_at
-        verification.created_at = datetime.now(timezone.utc)
-    else:
-        verification = EmailVerification(
-            user_id=user.id,
-            code_hash=verification_hash,
-            expires_at=expires_at,
-        )
-        session.add(verification)
-
+    user = User(
+        email=user_in.email,
+        name=user_in.name,
+        hashed_password=hash_password(user_in.password)
+    )
+    session.add(user)
     session.commit()
     session.refresh(user)
 
