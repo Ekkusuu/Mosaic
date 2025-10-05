@@ -14,12 +14,20 @@ import time
 from typing import Any, Dict
 
 load_dotenv()
-SECRET_KEY = os.getenv("JWT_SECRET", "")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "")
+SECRET_KEY = os.getenv("JWT_SECRET", "").strip()
+ALGORITHM = os.getenv("JWT_ALGORITHM", "").strip()
+if not SECRET_KEY or not ALGORITHM:
+    # Fail fast so misconfiguration is caught early
+    raise RuntimeError("JWT_SECRET or JWT_ALGORITHM missing in environment")
+
 # Token expiration (minutes). Default 4h if not supplied.
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "240"))
 if ACCESS_TOKEN_EXPIRE_MINUTES < 5:
     print(f"[WARN] ACCESS_TOKEN_EXPIRE_MINUTES is very low: {ACCESS_TOKEN_EXPIRE_MINUTES} minutes")
+
+# Basic brute force mitigation config (env-tunable)
+MAX_FAILED_LOGIN_ATTEMPTS = int(os.getenv("MAX_FAILED_LOGIN_ATTEMPTS", "5"))
+ACCOUNT_LOCK_MINUTES = int(os.getenv("ACCOUNT_LOCK_MINUTES", "15"))  # lock duration
 
 # Cache decoded tokens to avoid re-decoding / verifying on every single request.
 # NOTE: This introduces a trade-off: revocations (e.g., user deletion) propagate
@@ -51,13 +59,18 @@ def ensure_aware(dt: datetime) -> datetime:
 
 
 def set_auth_cookie(response: Response, token: str) -> None:
+    # In production you should set secure=True (HTTPS) and possibly SameSite=Strict depending on CSRF strategy.
+    secure_flag = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    same_site = os.getenv("COOKIE_SAMESITE", "lax").lower()
+    if same_site not in {"lax", "strict", "none"}:
+        same_site = "lax"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
-        samesite="lax",
-        secure=False,  # set True if served over HTTPS
+        samesite=same_site,
+        secure=secure_flag,
         path="/",
     )
 
@@ -117,78 +130,91 @@ def get_user_from_token(request: Request, session: Session) -> User:
 
 router = APIRouter()
 
-@router.post("/validate-registration", response_model=MessageResponse)
-def validate_registration(user_in: UserCreate, session: Session = Depends(get_session)) -> MessageResponse:
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing and existing.is_verified:
-        raise HTTPException(status_code=400, detail="Email already registered")
+@router.post("/register", response_model=UserRead)
+def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
+    # Normalize email + name trimming
+    email = (user_in.email or "").strip().lower()
+    name = (user_in.name or "").strip()
+    if not email or not name:
+        raise HTTPException(status_code=400, detail="Email and name are required")
 
+    # Validations (domain + password + username pattern)
     try:
-        validate_username(user_in.name)
+        validate_email_domain(email)
         validate_password(user_in.password)
-        validate_email_domain(user_in.email)
+        validate_username(name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    user = User(
-        email=user_in.email,
-        name=user_in.name,
-        hashed_password=hash_password(user_in.password)
-    )
+    # Race-safe uniqueness: rely on DB unique constraint; pre-check to give nicer error
+    existing = session.exec(select(User).where(User.email == email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed = hash_password(user_in.password)
+
+    # Derive university from domain (simple heuristic)
+    domain_part = email.split('@', 1)[1] if '@' in email else ''
+    university = None
+    if domain_part:
+        fragments = domain_part.split('.')
+        if len(fragments) >= 2:
+            university = '.'.join(fragments[-2:])
+
+    user = User(email=email, name=name, hashed_password=hashed)
+    profile = StudentProfile(user=user, university=university, username=name)
+    # Single transaction (commit once) avoids orphan profile if failure mid-way
+    session.add(user)
+    session.add(profile)
+    try:
+        session.commit()
+    except Exception as e:  # likely integrity error for duplicate
+        session.rollback()
+        # Hide raw DB exception details
+        raise HTTPException(status_code=400, detail="Could not register user (possibly duplicate email)") from e
+    session.refresh(user)
+
+    token = create_access_token(data={"sub": str(user.id)})
+    set_auth_cookie(response, token)
+    return user
+
+@router.post("/login", response_model=UserRead)
+def login_user(login_data: UserLogin, response: Response, session: Session = Depends(get_session)):
+    email = (login_data.email or "").strip().lower()
+    user = session.exec(select(User).where(User.email == email)).first()
+    # Uniform error to avoid user enumeration
+    invalid_error = HTTPException(status_code=401, detail="Invalid email or password")
+    now = datetime.now(timezone.utc)
+
+    if not user:
+        raise invalid_error
+
+    # Check lockout
+    if user.locked_until and user.locked_until > now:
+        raise HTTPException(status_code=423, detail="Account temporarily locked. Try later")
+
+    verified, maybe_new_hash = verify_and_optionally_rehash(login_data.password, user.hashed_password)
+    if not verified:
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+            user.locked_until = now + timedelta(minutes=ACCOUNT_LOCK_MINUTES)
+            user.failed_login_attempts = 0  # reset counter after locking
+        session.add(user)
+        session.commit()
+        raise invalid_error
+
+    # Successful login: reset counters, maybe upgrade hash
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    if maybe_new_hash:
+        user.hashed_password = maybe_new_hash
+    user.last_login_at = now
     session.add(user)
     session.commit()
     session.refresh(user)
 
-    # Auto-create empty profile with university derived from email domain
-    try:
-        domain = user.email.split('@', 1)[1].lower()
-    except Exception:
-        domain = None
-    university = None
-    # Naive derivation: transform domain (remove subdomains) e.g., cs.uni.edu -> uni.edu
-    if domain:
-        parts = domain.split('.')
-        if len(parts) >= 2:
-            university = '.'.join(parts[-2:])  # simple fallback; can be replaced with dataset mapping
-
-    profile = StudentProfile(
-        user_id=user.id,
-        university=university,
-        username=user.name  # initialize profile username from user creation
-    )
-    session.add(profile)
-    session.commit()
-    session.refresh(profile)
-
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
-
-    background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
-
-    return MessageResponse(message="Verification code sent to your email")
-
-@router.post("/login", response_model=UserRead)
-def login_user(login_data: UserLogin, response: Response, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == login_data.email)).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
-    
-    verified, maybe_new_hash = verify_and_optionally_rehash(login_data.password, user.hashed_password)
-    if not verified:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    if maybe_new_hash:
-        # Upgrade stored hash (cost factor increased)
-        user.hashed_password = maybe_new_hash
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    
-    token = create_access_token(data={"sub": str(user.id)})
-    set_auth_cookie(response, token)
-    
     return user
 
 
