@@ -71,6 +71,8 @@ const HexagonBackground: React.FC = () => {
         // Precomputed noise-space coordinates (static until resize)
         nx: number;
         ny: number;
+        // Precomputed per-octave spatial noise values
+        baseN: number[];
     }>>([]);
     // Cache heavy, immutable drawing resources
     const hexPathRef = useRef<Path2D | null>(null);
@@ -101,6 +103,29 @@ const HexagonBackground: React.FC = () => {
         const vertDist = hexHeight * 3 / 4;
         const horizDist = hexWidth;
 
+        // fBm parameters (must stay identical to preserve visuals)
+        const baseScale = 0.004; // spatial scale
+        const speed = 1.0; // animation speed
+        const octaves = 3;
+        const lacunarity = 2.0;
+        const gain = 0.5;
+
+        // Precompute octave frequency and amplitude arrays (static)
+        const freqs: number[] = [];
+        const amps: number[] = [];
+        const phases: number[] = [];
+        {
+            let f = 1;
+            let a = 1;
+            for (let o = 0; o < octaves; o++) {
+                freqs[o] = f;
+                amps[o] = a;
+                phases[o] = o * 1.7;
+                f *= lacunarity;
+                a *= gain;
+            }
+        }
+
         // Precompute a unit hex Path2D once (removes per-frame trig and path building)
         const buildHexPath = () => {
             const p = new Path2D();
@@ -126,10 +151,14 @@ const HexagonBackground: React.FC = () => {
                     const x = col * horizDist + (row % 2) * (horizDist / 2);
                     const y = row * vertDist;
                     // Map hex position into noise space (static until resize)
-                    const baseScale = 0.004; // keep identical visual scale
                     const nx = (x + canvas.width / 2) * baseScale;
                     const ny = (y + canvas.height / 2) * baseScale;
-                    hexagonsRef.current.push({ x, y, fillLevel: 0, targetFillLevel: 0, nx, ny });
+                    // Precompute per-octave spatial noise for this hex (time-independent)
+                    const baseN: number[] = new Array(octaves);
+                    for (let o = 0; o < octaves; o++) {
+                        baseN[o] = perlin.perlin2(nx * freqs[o], ny * freqs[o]);
+                    }
+                    hexagonsRef.current.push({ x, y, fillLevel: 0, targetFillLevel: 0, nx, ny, baseN });
                 }
             }
         };
@@ -176,43 +205,26 @@ const HexagonBackground: React.FC = () => {
             // faster time factor for snappier animation
             const time = _now * 0.003;
 
-            // Perlin noise parameters for ocean-like fBm (kept identical to preserve appearance)
-            const speed = 1.0;
-            const octaves = 3;
-            const lacunarity = 2.0;
-            const gain = 0.5;
-
-            // fBm but animates in-place by modulating octave amplitudes instead of translating samples
-            const fbm = (x: number, y: number, t: number) => {
-                let amplitude = 1;
-                let frequency = 1;
-                let sum = 0;
-                let max = 0;
-                for (let o = 0; o < octaves; o++) {
-                    // sample spatial noise only (no time added to coordinates)
-                    const n = perlin.perlin2(x * frequency, y * frequency);
-
-                    // per-octave amplitude modulation (oscillates but doesn't translate the pattern)
-                    const phase = o * 1.7;
-                    const mod = 0.6 + 0.4 * Math.sin(t * speed * (o + 1) + phase);
-
-                    sum += n * amplitude * mod;
-                    max += amplitude * Math.abs(mod);
-
-                    amplitude *= gain;
-                    frequency *= lacunarity;
-                }
-                // guard against divide-by-zero
-                return max === 0 ? 0 : sum / max; // result roughly -1..1
-            };
+            // Precompute per-octave time modulation and normalization once per frame
+            const mods: number[] = new Array(octaves);
+            let denom = 0;
+            for (let o = 0; o < octaves; o++) {
+                const m = 0.6 + 0.4 * Math.sin(time * speed * (o + 1) + phases[o]);
+                mods[o] = m;
+                denom += amps[o] * Math.abs(m);
+            }
 
             // Set constant stroke state once per frame
             ctx.strokeStyle = 'rgba(0,0,0,0.12)';
             ctx.lineWidth = 1;
 
             hexagonsRef.current.forEach((hex) => {
-                // Compute fBm noise and map to 0..1
-                const n = fbm(hex.nx, hex.ny, time * speed);
+                // Combine precomputed spatial noise with time-varying modulation
+                let sum = 0;
+                for (let o = 0; o < octaves; o++) {
+                    sum += hex.baseN[o] * amps[o] * mods[o];
+                }
+                const n = denom === 0 ? 0 : sum / denom; // result roughly -1..1
                 // Map noise (-1..1) to 0..1
                 let target = (n * 0.5 + 0.5) * 0.98 + 0.01; // small padding to avoid pure 0
                 // Emphasize crests slightly
