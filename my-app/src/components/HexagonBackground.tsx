@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import './HexagonBackground.css';
 
 // Easy-to-change global color bounds (grayscale) as hex strings
 const MIN_COLOR = '#000000ff'; // near-black
@@ -63,6 +64,7 @@ const perlin = createPerlin();
 const HexagonBackground: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animationRef = useRef<number | null>(null);
+    const lastFrameTimeRef = useRef<number>(0);
     const hexagonsRef = useRef<Array<{
         x: number;
         y: number;
@@ -88,11 +90,8 @@ const HexagonBackground: React.FC = () => {
         const setCanvasSize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // Rebuild cached gradient on size changes (used every frame)
-            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grad.addColorStop(0, '#f6f6f6');
-            grad.addColorStop(1, '#e8e8e8');
-            gradientRef.current = grad;
+            // Background is handled by CSS now; no gradient needed on canvas
+            gradientRef.current = null;
         };
         setCanvasSize();
 
@@ -193,14 +192,17 @@ const HexagonBackground: React.FC = () => {
 
         const animate = (_now: number) => {
 
+            // Frame cap: 30fps (~33.33ms)
+            const frameDuration = 1000 / 30;
+            if (_now - lastFrameTimeRef.current < frameDuration) {
+                animationRef.current = requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTimeRef.current = _now;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // subtle neutral gray gradient background (cached)
-            const grad = gradientRef.current;
-            if (grad) {
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
+            // Background gradient handled via CSS; no canvas fill required
 
             // faster time factor for snappier animation
             const time = _now * 0.003;
