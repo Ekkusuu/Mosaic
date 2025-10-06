@@ -68,18 +68,29 @@ const HexagonBackground: React.FC = () => {
         y: number;
         fillLevel: number;
         targetFillLevel: number;
+        // Precomputed noise-space coordinates (static until resize)
+        nx: number;
+        ny: number;
     }>>([]);
+    // Cache heavy, immutable drawing resources
+    const hexPathRef = useRef<Path2D | null>(null);
+    const gradientRef = useRef<CanvasGradient | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
         if (!ctx) return;
 
         const setCanvasSize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            // Rebuild cached gradient on size changes (used every frame)
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#f6f6f6');
+            grad.addColorStop(1, '#e8e8e8');
+            gradientRef.current = grad;
         };
         setCanvasSize();
 
@@ -90,6 +101,21 @@ const HexagonBackground: React.FC = () => {
         const vertDist = hexHeight * 3 / 4;
         const horizDist = hexWidth;
 
+        // Precompute a unit hex Path2D once (removes per-frame trig and path building)
+        const buildHexPath = () => {
+            const p = new Path2D();
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i - Math.PI / 6;
+                const hx = hexRadius * Math.cos(angle);
+                const hy = hexRadius * Math.sin(angle);
+                if (i === 0) p.moveTo(hx, hy);
+                else p.lineTo(hx, hy);
+            }
+            p.closePath();
+            hexPathRef.current = p;
+        };
+        buildHexPath();
+
         const buildGrid = () => {
             const cols = Math.ceil(canvas.width / horizDist) + 6;
             const rows = Math.ceil(canvas.height / vertDist) + 6;
@@ -99,24 +125,22 @@ const HexagonBackground: React.FC = () => {
                 for (let col = -3; col < cols; col++) {
                     const x = col * horizDist + (row % 2) * (horizDist / 2);
                     const y = row * vertDist;
-                    hexagonsRef.current.push({ x, y, fillLevel: 0, targetFillLevel: 0 });
+                    // Map hex position into noise space (static until resize)
+                    const baseScale = 0.004; // keep identical visual scale
+                    const nx = (x + canvas.width / 2) * baseScale;
+                    const ny = (y + canvas.height / 2) * baseScale;
+                    hexagonsRef.current.push({ x, y, fillLevel: 0, targetFillLevel: 0, nx, ny });
                 }
             }
         };
         buildGrid();
 
-        const drawHexagon = (x: number, y: number, radius: number, fillLevel: number) => {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i - Math.PI / 6;
-                const hx = radius * Math.cos(angle);
-                const hy = radius * Math.sin(angle);
-                if (i === 0) ctx.moveTo(hx, hy);
-                else ctx.lineTo(hx, hy);
-            }
-            ctx.closePath();
+        const drawHexagon = (x: number, y: number, fillLevel: number) => {
+            const path = hexPathRef.current;
+            if (!path) return;
+
+            // Skip if completely offscreen (simple culling)
+            if (x < -hexRadius || x > canvas.width + hexRadius || y < -hexRadius || y > canvas.height + hexRadius) return;
 
             // Grayscale color interpolation (black <-> white) for monochrome hexagons
             const t = fillLevel; // 0..1
@@ -124,35 +148,37 @@ const HexagonBackground: React.FC = () => {
             const g = Math.round(MIN_RGB.g + (MAX_RGB.g - MIN_RGB.g) * t);
             const b = Math.round(MIN_RGB.b + (MAX_RGB.b - MIN_RGB.b) * t);
 
+            // Position via transform, avoid save/restore
+            ctx.setTransform(1, 0, 0, 1, x, y);
+
             if (t > 0.01) {
                 ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                ctx.fill();
+                ctx.fill(path);
             }
 
-            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
+            ctx.stroke(path);
+
+            // Reset transform
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         };
 
         const animate = (_now: number) => {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // subtle neutral gray gradient background
-            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grad.addColorStop(0, '#f6f6f6');
-            grad.addColorStop(1, '#e8e8e8');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // subtle neutral gray gradient background (cached)
+            const grad = gradientRef.current;
+            if (grad) {
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             // faster time factor for snappier animation
             const time = _now * 0.003;
 
-            // Perlin noise parameters for ocean-like fBm
-            const baseScale = 0.004; // spatial scale
-            const speed = 1.0; // animation speed (increased)
-            const octaves = 3; // fewer octaves for better performance
+            // Perlin noise parameters for ocean-like fBm (kept identical to preserve appearance)
+            const speed = 1.0;
+            const octaves = 3;
             const lacunarity = 2.0;
             const gain = 0.5;
 
@@ -180,13 +206,13 @@ const HexagonBackground: React.FC = () => {
                 return max === 0 ? 0 : sum / max; // result roughly -1..1
             };
 
-            hexagonsRef.current.forEach((hex) => {
-                // Map hex position into noise space
-                const nx = (hex.x + canvas.width / 2) * baseScale;
-                const ny = (hex.y + canvas.height / 2) * baseScale;
+            // Set constant stroke state once per frame
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            ctx.lineWidth = 1;
 
+            hexagonsRef.current.forEach((hex) => {
                 // Compute fBm noise and map to 0..1
-                const n = fbm(nx, ny, time * speed);
+                const n = fbm(hex.nx, hex.ny, time * speed);
                 // Map noise (-1..1) to 0..1
                 let target = (n * 0.5 + 0.5) * 0.98 + 0.01; // small padding to avoid pure 0
                 // Emphasize crests slightly
@@ -199,7 +225,7 @@ const HexagonBackground: React.FC = () => {
                 hex.fillLevel += (hex.targetFillLevel - hex.fillLevel) * smooth;
                 hex.fillLevel = Math.max(0, Math.min(1, hex.fillLevel));
 
-                drawHexagon(hex.x, hex.y, hexRadius, hex.fillLevel);
+                drawHexagon(hex.x, hex.y, hex.fillLevel);
             });
 
             animationRef.current = requestAnimationFrame(animate);
