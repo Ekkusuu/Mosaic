@@ -1,7 +1,7 @@
 # app/routers/users.py
 from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlmodel import Session, select
-from passlib.hash import bcrypt
+from app.security import hash_password, verify_password
 from app.db import get_session
 from app.models import User, UserCreate, UserRead, UserLogin
 from app.validators import validate_username, validate_password, validate_email_domain
@@ -79,7 +79,7 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
     user = User(
         email=user_in.email,
         name=user_in.name,
-        hashed_password=bcrypt.hash(user_in.password)
+        hashed_password=hash_password(user_in.password)
     )
     session.add(user)
     session.commit()
@@ -96,7 +96,7 @@ def login_user(login_data: UserLogin, response: Response, session: Session = Dep
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    if not bcrypt.verify(login_data.password, user.hashed_password):
+    if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_access_token(data={"sub": str(user.id)})

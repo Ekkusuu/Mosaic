@@ -1,10 +1,7 @@
 from sqlmodel import Session
 from app.db import engine
 from app.models import User
-import hashlib
-
-def hash_password(password: str) -> str:
-	return hashlib.sha256(password.encode()).hexdigest()
+from app.security import hash_password
 
 def register_user(email: str, password: str) -> User:
 	"""
