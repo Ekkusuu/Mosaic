@@ -17,9 +17,10 @@ interface NotesPopupProps {
     isOpen: boolean;
     onClose: () => void;
     notes: Note[];
+    onEditNote?: (note: Note) => void;
 }
 
-const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes }) => {
+const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditNote }) => {
     const [searchQuery, setSearchQuery] = useState('');
     
     if (!isOpen) return null;
@@ -191,7 +192,7 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes }) => {
                                         <button 
                                             className="note-action-btn" 
                                             aria-label="Edit note"
-                                            onClick={() => {/* TODO: Add edit note functionality for note id: ${note.id} */}}
+                                            onClick={() => onEditNote && onEditNote(note)}
                                             title="Edit this note"
                                         >
                                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

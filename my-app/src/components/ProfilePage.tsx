@@ -5,7 +5,7 @@ import HexagonBackground from './HexagonBackground';
 import NotesPopup from './NotesPopup';
 import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
-import AIChat from './AIChat';
+import NoteEditor from './NoteEditor';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -16,6 +16,8 @@ const ProfilePage: React.FC = () => {
     const [showNotesPopup, setShowNotesPopup] = useState(false);
     const [showQuestionsPopup, setShowQuestionsPopup] = useState(false);
     const [showCommentsPopup, setShowCommentsPopup] = useState(false);
+    const [showNoteEditor, setShowNoteEditor] = useState(false);
+    const [editingNote, setEditingNote] = useState<any>(null);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -189,7 +191,29 @@ const ProfilePage: React.FC = () => {
     const activityData = [3, 5, 2, 7, 6, 4, 8, 9, 5, 10, 6, 12];
 
     const maxActivity = Math.max(...activityData, 1);
-    const [showChat, setShowChat] = useState(false);
+
+    // Note editor handlers
+    const handleCreateNote = () => {
+        setEditingNote(null);
+        setShowNoteEditor(true);
+    };
+
+    const handleEditNote = (note: any) => {
+        setEditingNote(note);
+        setShowNoteEditor(true);
+    };
+
+    const handleSaveNote = (note: any) => {
+        // TODO: Implement note saving logic (API call)
+        console.log('Saving note:', note);
+        setShowNoteEditor(false);
+        setEditingNote(null);
+    };
+
+    const handleCloseNoteEditor = () => {
+        setShowNoteEditor(false);
+        setEditingNote(null);
+    };
 
     return (
         <div className="profile-container">
@@ -444,7 +468,7 @@ const ProfilePage: React.FC = () => {
                                 <h2 className="section-title">My notes</h2>
                                 <button 
                                     className="create-note-btn"
-                                    onClick={() => {/* TODO: Add create note functionality */}}
+                                    onClick={handleCreateNote}
                                     title="Create a new note"
                                 >
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -465,7 +489,7 @@ const ProfilePage: React.FC = () => {
                                             <div className="note-actions">
                                                 <button 
                                                     className="note-edit-btn" 
-                                                    onClick={() => {/* TODO: Add edit note functionality */}}
+                                                    onClick={() => handleEditNote(note)}
                                                     aria-label="Edit note"
                                                     title="Edit this note"
                                                 >
@@ -558,21 +582,6 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        {/* AI Chat Section Toggle */}
-                        <div className="content-section">
-                            <div className="section-header">
-                                <h2 className="section-title">AI Assistant</h2>
-                                <button className="see-all-btn" type="button" onClick={() => setShowChat(v => !v)}>
-                                    {showChat ? 'Hide chat' : 'Open chat'}
-                                </button>
-                            </div>
-                            {showChat && (
-                                <div className="ai-chat-wrapper">
-                                    <AIChat />
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -708,6 +717,7 @@ const ProfilePage: React.FC = () => {
                 isOpen={showNotesPopup}
                 onClose={() => setShowNotesPopup(false)}
                 notes={publicNotes}
+                onEditNote={handleEditNote}
             />
 
             {/* Questions Popup */}
@@ -722,6 +732,15 @@ const ProfilePage: React.FC = () => {
                 isOpen={showCommentsPopup}
                 onClose={() => setShowCommentsPopup(false)}
                 comments={userComments}
+            />
+
+            {/* Note Editor */}
+            <NoteEditor 
+                isOpen={showNoteEditor}
+                onClose={handleCloseNoteEditor}
+                onSave={handleSaveNote}
+                existingNote={editingNote}
+                mode={editingNote ? 'edit' : 'create'}
             />
         </div>
     );
