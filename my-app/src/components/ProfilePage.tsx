@@ -442,13 +442,39 @@ const ProfilePage: React.FC = () => {
                         <div className="content-section">
                             <div className="section-header">
                                 <h2 className="section-title">My notes</h2>
+                                <button 
+                                    className="create-note-btn"
+                                    onClick={() => {/* TODO: Add create note functionality */}}
+                                    title="Create a new note"
+                                >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                    New Note
+                                </button>
                             </div>
                             <div className="notes-grid">
                                 {publicNotes.map(note => (
                                     <div key={note.id} className="note-card">
                                         <div className="note-header">
-                                            <a href="#" className="note-title">{note.title}</a>
-                                            <span className="note-visibility">{note.visibility}</span>
+                                            <div className="note-header-left">
+                                                <a href="#" className="note-title">{note.title}</a>
+                                                <span className="note-visibility">{note.visibility}</span>
+                                            </div>
+                                            <div className="note-actions">
+                                                <button 
+                                                    className="note-edit-btn" 
+                                                    onClick={() => {/* TODO: Add edit note functionality */}}
+                                                    aria-label="Edit note"
+                                                    title="Edit this note"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z" fill="currentColor"/>
+                                                        <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
                                         <p className="note-description">{note.description}</p>
                                         <div className="note-meta">

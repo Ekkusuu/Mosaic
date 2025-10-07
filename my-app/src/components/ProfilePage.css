@@ -226,6 +226,34 @@
     margin: 0;
 }
 
+/* Create note button */
+.create-note-btn {
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    transition: all 0.2s ease;
+    min-width: fit-content;
+}
+
+.create-note-btn:hover {
+    background: var(--color-panel);
+    border-color: var(--color-input-focus);
+    transform: translateY(-1px);
+}
+
+.create-note-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
 .customize-link {
     color: var(--color-muted-2);
     font-size: 12px;
@@ -268,8 +296,46 @@
 .note-header {
     display: flex;
     align-items: center;
-    justify-content: between;
+    justify-content: space-between;
     margin-bottom: 8px;
+}
+
+.note-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.note-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.note-card:hover .note-actions {
+    opacity: 1;
+}
+
+.note-edit-btn {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--color-muted);
+}
+
+.note-edit-btn:hover {
+    background: var(--color-surface);
+    border-color: var(--color-input-focus);
+    color: var(--color-text);
 }
 
 .note-title {
@@ -277,7 +343,6 @@
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;
-    margin-right: auto;
 }
 
 .note-title:hover {
@@ -1288,6 +1353,11 @@
 
     .notes-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* Show edit buttons on mobile */
+    .note-actions {
+        opacity: 1;
     }
 
     .profile-content {
