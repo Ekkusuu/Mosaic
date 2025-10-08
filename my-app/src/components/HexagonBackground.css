@@ -1,0 +1,6 @@
+.hexagon-bg {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(180deg, #f6f6f6 0%, #e8e8e8 100%);
+}
