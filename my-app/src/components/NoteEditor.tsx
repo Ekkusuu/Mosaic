@@ -442,6 +442,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 <button type="button" onClick={() => formatText('formatBlock', 'h3')} className="toolbar-btn">
                                     H2
                                 </button>
+                                <button type="button" onClick={() => formatText('formatBlock', 'p')} className="toolbar-btn" title="Normal text">
+                                    P
+                                </button>
                                 <div className="toolbar-divider"></div>
                                 <button type="button" onClick={() => formatText('insertUnorderedList')} className="toolbar-btn">
                                     • List
