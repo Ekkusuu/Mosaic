@@ -4,6 +4,7 @@ import './MainPage.css';
 import Logo from './Logo';
 import HexagonBackground from './HexagonBackground';
 import AIChat from './AIChat';
+import NoteViewer from './NoteViewer';
 
 // Navbar Component
 interface NavItem {
@@ -120,10 +121,67 @@ const MainPage: React.FC = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'notes' | 'ai'>('posts');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNote, setSelectedNote] = useState<any | null>(null);
+  const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
 
   const openNav = () => setIsNavOpen(true);
   const closeNav = () => setIsNavOpen(false);
   const navigate = useNavigate();
+
+  const handleNoteClick = (note: any) => {
+    // Create a more detailed note object for viewing
+    const detailedNote = {
+      ...note,
+      content: `<h2>Introduction</h2>
+<p>This is a sample note about ${note.title.toLowerCase()}. In a real application, this content would come from your backend.</p>
+
+<h3>Key Points</h3>
+<ul>
+  <li>Important concept #1</li>
+  <li>Important concept #2 with <span class="document-reference" data-file-index="0">reference document</span></li>
+  <li>Important concept #3</li>
+</ul>
+
+<p>Here's an example with an <span class="image-reference" data-file-index="1">example diagram</span> that illustrates the concept.</p>
+
+<blockquote>
+  <p>"This is a relevant quote that adds value to the discussion."</p>
+</blockquote>
+
+<h3>Implementation Details</h3>
+<p>When implementing this concept, consider the following:</p>
+<pre><code>// Sample code snippet
+function example() {
+  return "This would be actual code in a real note";
+}</code></pre>
+
+<p>Make sure to follow best practices and refer to the <span class="document-reference" data-file-index="2">official documentation</span> for more details.</p>`,
+      subject: note.tags[0] ? note.tags[0].charAt(0).toUpperCase() + note.tags[0].slice(1) : 'General',
+      visibility: 'Public',
+      author: {
+        name: 'John Doe',
+        username: 'johndoe',
+        honorLevel: 5
+      },
+      createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+      views: Math.floor(Math.random() * 1000) + 50,
+      likes: Math.floor(Math.random() * 100) + 10,
+      attachments: [
+        { name: 'reference-document.pdf' },
+        { name: 'example-diagram.png' },
+        { name: 'official-docs.pdf' }
+      ]
+    };
+    
+    setSelectedNote(detailedNote);
+    setIsNoteViewerOpen(true);
+  };
+
+  const closeNoteViewer = () => {
+    setIsNoteViewerOpen(false);
+    setSelectedNote(null);
+  };
 
   // Mock feed data (feel free to wire to backend later)
   const postFeed = useMemo(
@@ -280,8 +338,8 @@ const MainPage: React.FC = () => {
                 <div className="notes-container">
                   <div className="card-grid">
                     {publicNotesFeed.map(note => (
-                      <article key={note.id} className="note-card">
-                        <a href="#" className="card-title">{note.title}</a>
+                      <article key={note.id} className="note-card" onClick={() => handleNoteClick(note)}>
+                        <a href="#" className="card-title" onClick={(e) => { e.preventDefault(); handleNoteClick(note); }}>{note.title}</a>
                         <p className="note-summary">{note.summary}</p>
                         <div className="tags">
                           {note.tags.map(t => (
@@ -302,6 +360,13 @@ const MainPage: React.FC = () => {
           </section>
         </main>
       </div>
+
+      {/* Note Viewer Modal */}
+      <NoteViewer
+        isOpen={isNoteViewerOpen}
+        onClose={closeNoteViewer}
+        note={selectedNote}
+      />
     </div>
   );
 };
