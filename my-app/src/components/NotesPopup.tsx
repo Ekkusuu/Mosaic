@@ -18,9 +18,10 @@ interface NotesPopupProps {
     onClose: () => void;
     notes: Note[];
     onEditNote?: (note: Note) => void;
+    onViewNote?: (note: Note) => void;
 }
 
-const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditNote }) => {
+const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditNote, onViewNote }) => {
     const [searchQuery, setSearchQuery] = useState('');
     
     if (!isOpen) return null;
@@ -183,7 +184,14 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
                             <div key={note.id} className="note-card-popup">
                                 <div className="note-card-header">
                                     <div className="note-title-section">
-                                        <h3 className="note-title-popup">{note.title}</h3>
+                                        <h3 
+                                            className="note-title-popup"
+                                            onClick={() => onViewNote && onViewNote(note)}
+                                            style={{ cursor: 'pointer' }}
+                                            title="Click to view note"
+                                        >
+                                            {note.title}
+                                        </h3>
                                         <span className={`note-visibility-popup ${note.visibility.toLowerCase()}`}>
                                             {note.visibility}
                                         </span>
@@ -215,7 +223,14 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
                                     </div>
                                 </div>
 
-                                <p className="note-description-popup">{note.description}</p>
+                                <p 
+                                    className="note-description-popup"
+                                    onClick={() => onViewNote && onViewNote(note)}
+                                    style={{ cursor: 'pointer' }}
+                                    title="Click to view note"
+                                >
+                                    {note.description}
+                                </p>
 
                                 <div className="note-meta-popup">
                                     <div className="note-subject-popup">

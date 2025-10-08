@@ -6,6 +6,7 @@ import NotesPopup from './NotesPopup';
 import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
 import NoteEditor from './NoteEditor';
+import NoteViewer from './NoteViewer';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -18,6 +19,8 @@ const ProfilePage: React.FC = () => {
     const [showCommentsPopup, setShowCommentsPopup] = useState(false);
     const [showNoteEditor, setShowNoteEditor] = useState(false);
     const [editingNote, setEditingNote] = useState<any>(null);
+    const [selectedNote, setSelectedNote] = useState<any>(null);
+    const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -213,6 +216,57 @@ const ProfilePage: React.FC = () => {
     const handleCloseNoteEditor = () => {
         setShowNoteEditor(false);
         setEditingNote(null);
+    };
+
+    const handleViewNote = (note: any) => {
+        // Create a detailed note object for viewing
+        const detailedNote = {
+            ...note,
+            content: `<h2>Introduction</h2>
+<p>This is the content of ${note.title.toLowerCase()}. In a real application, this content would come from your backend database.</p>
+
+<h3>Key Points</h3>
+<ul>
+  <li>Important concept #1</li>
+  <li>Important concept #2</li>
+  <li>Important concept #3</li>
+</ul>
+
+<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
+
+<h3>Implementation Details</h3>
+<p>When implementing this concept, consider the following code example:</p>
+
+<pre><code>function example() {
+  const data = fetchData();
+  return data.map(item => ({
+    id: item.id,
+    name: item.name,
+    processed: true
+  }));
+}</code></pre>
+
+<p>Make sure to follow best practices for optimal results.</p>`,
+            author: {
+                name: profileData.name,
+                username: profileData.username,
+                honorLevel: profileData.honorLevel
+            },
+            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date().toISOString(),
+            views: Math.floor(Math.random() * 500) + 50,
+            likes: Math.floor(Math.random() * 50) + 5,
+            tags: note.subject ? [note.subject.toLowerCase()] : [],
+            attachments: []
+        };
+        
+        setSelectedNote(detailedNote);
+        setIsNoteViewerOpen(true);
+    };
+
+    const closeNoteViewer = () => {
+        setIsNoteViewerOpen(false);
+        setSelectedNote(null);
     };
 
     return (
@@ -483,7 +537,13 @@ const ProfilePage: React.FC = () => {
                                     <div key={note.id} className="note-card">
                                         <div className="note-header">
                                             <div className="note-header-left">
-                                                <a href="#" className="note-title">{note.title}</a>
+                                                <a 
+                                                    href="#" 
+                                                    className="note-title"
+                                                    onClick={(e) => { e.preventDefault(); handleViewNote(note); }}
+                                                >
+                                                    {note.title}
+                                                </a>
                                                 <span className="note-visibility">{note.visibility}</span>
                                             </div>
                                             <div className="note-actions">
@@ -500,7 +560,13 @@ const ProfilePage: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <p className="note-description">{note.description}</p>
+                                        <p 
+                                            className="note-description"
+                                            onClick={() => handleViewNote(note)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {note.description}
+                                        </p>
                                         <div className="note-meta">
                                             <div className="note-subject">
                                                 <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
@@ -718,6 +784,7 @@ const ProfilePage: React.FC = () => {
                 onClose={() => setShowNotesPopup(false)}
                 notes={publicNotes}
                 onEditNote={handleEditNote}
+                onViewNote={handleViewNote}
             />
 
             {/* Questions Popup */}
@@ -741,6 +808,13 @@ const ProfilePage: React.FC = () => {
                 onSave={handleSaveNote}
                 existingNote={editingNote}
                 mode={editingNote ? 'edit' : 'create'}
+            />
+
+            {/* Note Viewer */}
+            <NoteViewer
+                isOpen={isNoteViewerOpen}
+                onClose={closeNoteViewer}
+                note={selectedNote}
             />
         </div>
     );
