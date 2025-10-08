@@ -243,6 +243,20 @@
     background: color-mix(in srgb, var(--color-input-bg) 30%, transparent);
     padding: 16px 20px;
     border-radius: 8px;
+    position: relative;
+}
+
+.note-content blockquote::before {
+    content: '"';
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 24px;
+    color: var(--color-input-focus);
+    opacity: 0.5;
+    font-style: normal;
+    font-weight: bold;
+    line-height: 1;
 }
 
 .note-content code {
@@ -269,6 +283,12 @@
     background: none;
     padding: 0;
     border: none;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text);
+    white-space: pre;
+    display: block;
 }
 
 /* Reference styling */

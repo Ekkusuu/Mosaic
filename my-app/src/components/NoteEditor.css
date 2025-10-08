@@ -321,6 +321,67 @@
     margin: 4px 0;
 }
 
+/* Code blocks */
+.editor-content pre {
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+    overflow-x: auto;
+    position: relative;
+}
+
+.editor-content pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text);
+    white-space: pre;
+    display: block;
+    outline: none;
+}
+
+/* Blockquotes */
+.editor-content blockquote {
+    background: color-mix(in srgb, var(--color-input-bg) 30%, transparent);
+    border-left: 4px solid var(--color-input-focus);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 12px 0;
+    color: var(--color-muted);
+    font-style: italic;
+    position: relative;
+    outline: none;
+}
+
+.editor-content blockquote::before {
+    content: '"';
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 24px;
+    color: var(--color-input-focus);
+    opacity: 0.5;
+    font-style: normal;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.editor-content blockquote:focus {
+    background: color-mix(in srgb, var(--color-input-bg) 40%, transparent);
+    border-left-color: var(--color-input-focus);
+}
+
+/* Editable focus states */
+.editor-content pre:focus-within,
+.editor-content blockquote:focus {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
 /* Document and Image References */
 .editor-content .document-reference,
 .editor-content .image-reference {

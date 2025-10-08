@@ -144,15 +144,18 @@ const MainPage: React.FC = () => {
 
 <p>Here's an example with an <span class="image-reference" data-file-index="1">example diagram</span> that illustrates the concept.</p>
 
-<blockquote>
-  <p>"This is a relevant quote that adds value to the discussion."</p>
-</blockquote>
+<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
 
 <h3>Implementation Details</h3>
-<p>When implementing this concept, consider the following:</p>
-<pre><code>// Sample code snippet
-function example() {
-  return "This would be actual code in a real note";
+<p>When implementing this concept, consider the following code example:</p>
+
+<pre><code>function example() {
+  const data = fetchData();
+  return data.map(item => ({
+    id: item.id,
+    name: item.name,
+    processed: true
+  }));
 }</code></pre>
 
 <p>Make sure to follow best practices and refer to the <span class="document-reference" data-file-index="2">official documentation</span> for more details.</p>`,
