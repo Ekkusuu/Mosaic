@@ -3,6 +3,9 @@ import { Navigate } from 'react-router-dom';
 
 const API_BASE_URL = 'http://localhost:8000';
 
+// Dev bypass flag from Vite env; only active in development mode
+const BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true';
+
 type Status = 'pending' | 'allowed' | 'denied';
 
 interface Props {
@@ -15,6 +18,28 @@ export default function RequireAuth({ children, checkIntervalMs = 2000 }: Props)
   const guardActive = useRef(true);
 
   useEffect(() => {
+    // If bypassing auth in development, allow immediately and optionally seed mock user
+    if (BYPASS_AUTH) {
+      try {
+        // Seed a minimal mock user for components that might read from storage later
+        const mock = {
+          id: 'dev-user',
+          name: 'Dev User',
+          email: 'dev@example.com',
+          username: 'dev',
+          honorLevel: 3,
+        };
+        // Only set if not already present to avoid clobbering real data
+        if (!localStorage.getItem('mosaic:user')) {
+          localStorage.setItem('mosaic:user', JSON.stringify(mock));
+        }
+      } catch {
+        // ignore storage errors
+      }
+      setStatus('allowed');
+      return;
+    }
+
     guardActive.current = true;
 
     const check = async () => {
