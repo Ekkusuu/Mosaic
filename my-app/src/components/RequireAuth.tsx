@@ -3,8 +3,15 @@ import { Navigate } from 'react-router-dom';
 
 const API_BASE_URL = 'http://localhost:8000';
 
+// Helper to parse truthy env values like true/1/yes/on (case-insensitive)
+function isTruthyEnv(val: unknown): boolean {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') return /^(true|1|yes|on)$/i.test(val.trim());
+  return false;
+}
+
 // Dev bypass flag from Vite env; only active in development mode
-const BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === 'true';
+const BYPASS_AUTH = import.meta.env.DEV && isTruthyEnv(import.meta.env.VITE_BYPASS_AUTH);
 
 type Status = 'pending' | 'allowed' | 'denied';
 
@@ -20,6 +27,8 @@ export default function RequireAuth({ children, checkIntervalMs = 2000 }: Props)
   useEffect(() => {
     // If bypassing auth in development, allow immediately and optionally seed mock user
     if (BYPASS_AUTH) {
+      // Surface a clear message in the console so collaborators can verify it's active
+      try { console.info('[RequireAuth] Dev auth bypass is ACTIVE'); } catch {}
       try {
         // Seed a minimal mock user for components that might read from storage later
         const mock = {
