@@ -5,7 +5,8 @@ import HexagonBackground from './HexagonBackground';
 import NotesPopup from './NotesPopup';
 import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
-import AIChat from './AIChat';
+import NoteEditor from './NoteEditor';
+import NoteViewer from './NoteViewer';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -16,6 +17,10 @@ const ProfilePage: React.FC = () => {
     const [showNotesPopup, setShowNotesPopup] = useState(false);
     const [showQuestionsPopup, setShowQuestionsPopup] = useState(false);
     const [showCommentsPopup, setShowCommentsPopup] = useState(false);
+    const [showNoteEditor, setShowNoteEditor] = useState(false);
+    const [editingNote, setEditingNote] = useState<any>(null);
+    const [selectedNote, setSelectedNote] = useState<any>(null);
+    const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -189,7 +194,80 @@ const ProfilePage: React.FC = () => {
     const activityData = [3, 5, 2, 7, 6, 4, 8, 9, 5, 10, 6, 12];
 
     const maxActivity = Math.max(...activityData, 1);
-    const [showChat, setShowChat] = useState(false);
+
+    // Note editor handlers
+    const handleCreateNote = () => {
+        setEditingNote(null);
+        setShowNoteEditor(true);
+    };
+
+    const handleEditNote = (note: any) => {
+        setEditingNote(note);
+        setShowNoteEditor(true);
+    };
+
+    const handleSaveNote = (note: any) => {
+        // TODO: Implement note saving logic (API call)
+        console.log('Saving note:', note);
+        setShowNoteEditor(false);
+        setEditingNote(null);
+    };
+
+    const handleCloseNoteEditor = () => {
+        setShowNoteEditor(false);
+        setEditingNote(null);
+    };
+
+    const handleViewNote = (note: any) => {
+        // Create a detailed note object for viewing
+        const detailedNote = {
+            ...note,
+            content: `<h2>Introduction</h2>
+<p>This is the content of ${note.title.toLowerCase()}. In a real application, this content would come from your backend database.</p>
+
+<h3>Key Points</h3>
+<ul>
+  <li>Important concept #1</li>
+  <li>Important concept #2</li>
+  <li>Important concept #3</li>
+</ul>
+
+<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
+
+<h3>Implementation Details</h3>
+<p>When implementing this concept, consider the following code example:</p>
+
+<pre><code>function example() {
+  const data = fetchData();
+  return data.map(item => ({
+    id: item.id,
+    name: item.name,
+    processed: true
+  }));
+}</code></pre>
+
+<p>Make sure to follow best practices for optimal results.</p>`,
+            author: {
+                name: profileData.name,
+                username: profileData.username,
+                honorLevel: profileData.honorLevel
+            },
+            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date().toISOString(),
+            views: Math.floor(Math.random() * 500) + 50,
+            likes: Math.floor(Math.random() * 50) + 5,
+            tags: note.subject ? [note.subject.toLowerCase()] : [],
+            attachments: []
+        };
+        
+        setSelectedNote(detailedNote);
+        setIsNoteViewerOpen(true);
+    };
+
+    const closeNoteViewer = () => {
+        setIsNoteViewerOpen(false);
+        setSelectedNote(null);
+    };
 
     return (
         <div className="profile-container">
@@ -442,15 +520,53 @@ const ProfilePage: React.FC = () => {
                         <div className="content-section">
                             <div className="section-header">
                                 <h2 className="section-title">My notes</h2>
+                                <button 
+                                    className="create-note-btn"
+                                    onClick={handleCreateNote}
+                                    title="Create a new note"
+                                >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                    New Note
+                                </button>
                             </div>
                             <div className="notes-grid">
                                 {publicNotes.map(note => (
                                     <div key={note.id} className="note-card">
                                         <div className="note-header">
-                                            <a href="#" className="note-title">{note.title}</a>
-                                            <span className="note-visibility">{note.visibility}</span>
+                                            <div className="note-header-left">
+                                                <a 
+                                                    href="#" 
+                                                    className="note-title"
+                                                    onClick={(e) => { e.preventDefault(); handleViewNote(note); }}
+                                                >
+                                                    {note.title}
+                                                </a>
+                                                <span className="note-visibility">{note.visibility}</span>
+                                            </div>
+                                            <div className="note-actions">
+                                                <button 
+                                                    className="note-edit-btn" 
+                                                    onClick={() => handleEditNote(note)}
+                                                    aria-label="Edit note"
+                                                    title="Edit this note"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z" fill="currentColor"/>
+                                                        <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <p className="note-description">{note.description}</p>
+                                        <p 
+                                            className="note-description"
+                                            onClick={() => handleViewNote(note)}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {note.description}
+                                        </p>
                                         <div className="note-meta">
                                             <div className="note-subject">
                                                 <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
@@ -532,21 +648,6 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        {/* AI Chat Section Toggle */}
-                        <div className="content-section">
-                            <div className="section-header">
-                                <h2 className="section-title">AI Assistant</h2>
-                                <button className="see-all-btn" type="button" onClick={() => setShowChat(v => !v)}>
-                                    {showChat ? 'Hide chat' : 'Open chat'}
-                                </button>
-                            </div>
-                            {showChat && (
-                                <div className="ai-chat-wrapper">
-                                    <AIChat />
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -682,6 +783,8 @@ const ProfilePage: React.FC = () => {
                 isOpen={showNotesPopup}
                 onClose={() => setShowNotesPopup(false)}
                 notes={publicNotes}
+                onEditNote={handleEditNote}
+                onViewNote={handleViewNote}
             />
 
             {/* Questions Popup */}
@@ -696,6 +799,22 @@ const ProfilePage: React.FC = () => {
                 isOpen={showCommentsPopup}
                 onClose={() => setShowCommentsPopup(false)}
                 comments={userComments}
+            />
+
+            {/* Note Editor */}
+            <NoteEditor 
+                isOpen={showNoteEditor}
+                onClose={handleCloseNoteEditor}
+                onSave={handleSaveNote}
+                existingNote={editingNote}
+                mode={editingNote ? 'edit' : 'create'}
+            />
+
+            {/* Note Viewer */}
+            <NoteViewer
+                isOpen={isNoteViewerOpen}
+                onClose={closeNoteViewer}
+                note={selectedNote}
             />
         </div>
     );

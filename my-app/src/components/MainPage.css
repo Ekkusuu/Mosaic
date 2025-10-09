@@ -672,18 +672,27 @@
 }
 
 .feed .note-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  background: color-mix(in srgb, var(--color-input-bg) 85%, transparent);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--color-input-bg) 90%, transparent);
+  border-color: var(--color-input-focus);
 }
 
 .note-card:hover::before {
   opacity: 1;
+  background: linear-gradient(90deg, #3B82F6, #1E40AF, #3B82F6);
 }
 
 .feed .note-card .card-title {
   font-size: 15px;
   margin-bottom: 10px;
+  transition: color 0.2s ease;
+}
+
+.feed .note-card:hover .card-title {
+  color: var(--color-white);
 }
 
 .feed .note-summary {
