@@ -1,0 +1,911 @@
+@import './Color.css';
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.public-profile-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: var(--color-bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.public-profile-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+    position: relative;
+    z-index: 2;
+}
+
+/* hexagon background canvas should cover the container behind the content */
+.public-profile-container canvas.hexagon-bg {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.back-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 30;
+    width: 44px;
+    height: 44px;
+    background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 26px rgba(0,0,0,0.18);
+    backdrop-filter: blur(6px) saturate(120%);
+    color: var(--color-text);
+}
+
+.back-btn:hover {
+    background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.public-profile-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 32px;
+    align-items: start;
+}
+
+/* Left sidebar with user info */
+.public-profile-sidebar {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    position: sticky;
+    top: 40px;
+    text-align: center;
+}
+
+.public-profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--color-white);
+    margin: 0 auto 16px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: bold;
+    color: var(--color-surface);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.public-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.public-profile-name {
+    color: var(--color-text);
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.public-profile-username {
+    color: var(--color-muted);
+    font-size: 16px;
+    margin-bottom: 16px;
+}
+
+.public-profile-bio {
+    color: var(--color-muted-2);
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: center;
+    margin: 8px 0 16px 0;
+}
+
+/* Academic info section */
+.academic-info {
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.academic-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-muted-2);
+    font-size: 12px;
+}
+
+.academic-item svg {
+    flex-shrink: 0;
+    color: var(--color-muted);
+}
+
+.public-profile-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: var(--color-muted);
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-item.clickable {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: background 0.2s;
+    color: inherit;
+    font-size: inherit;
+}
+
+.stat-item.clickable:hover {
+    background: var(--color-input-bg);
+}
+
+.stat-number {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.honor-level {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: background 0.2s;
+    color: inherit;
+}
+
+.honor-level:hover {
+    background: var(--color-input-bg);
+}
+
+.honor-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-input-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+/* Follow/Unfollow button */
+.follow-profile-btn {
+    width: 100%;
+    height: 36px;
+    background: var(--color-white);
+    border: 1px solid var(--color-white);
+    border-radius: 6px;
+    color: var(--color-surface);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.follow-profile-btn:hover {
+    background: var(--color-muted-2);
+    border-color: var(--color-muted-2);
+    transform: translateY(-1px);
+}
+
+.follow-profile-btn.following {
+    background: var(--color-input-bg);
+    border-color: var(--color-border);
+    color: var(--color-text);
+}
+
+.follow-profile-btn.following:hover {
+    background: var(--color-panel);
+    border-color: var(--color-input-focus);
+}
+
+/* Main content area */
+.public-profile-main {
+    min-height: 100vh;
+}
+
+.content-section {
+    margin-bottom: 24px;
+}
+
+.section-header {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px 8px 0 0;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: none;
+}
+
+.section-title {
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Notes grid */
+.notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1px;
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+}
+
+.note-card {
+    background: var(--color-surface);
+    border: none;
+    border-radius: 0;
+    padding: 16px;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.note-card:last-child {
+    border-bottom: none;
+}
+
+.note-card:hover {
+    background: var(--color-input-bg);
+}
+
+.note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.note-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.note-title {
+    color: var(--color-muted-2);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.note-title:hover {
+    color: var(--color-text);
+}
+
+.note-visibility {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 10px;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.note-description {
+    color: var(--color-muted);
+    font-size: 12px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.note-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+.note-subject {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.subject-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.subject-dot.mathematics { background: #2563eb; }
+.subject-dot.physics { background: #dc2626; }
+.subject-dot.chemistry { background: #16a34a; }
+.subject-dot.biology { background: #059669; }
+.subject-dot.computer-science { background: #7c3aed; }
+.subject-dot.economics { background: #ea580c; }
+.subject-dot.psychology { background: #db2777; }
+.subject-dot.history { background: #b45309; }
+.subject-dot.literature { background: #4338ca; }
+.subject-dot.engineering { background: #374151; }
+.subject-dot.medicine { background: #be123c; }
+.subject-dot.law { background: #1f2937; }
+
+/* See all button */
+.see-all-btn {
+    background: var(--color-surface);
+    border: none;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 8px 8px;
+    padding: 12px 16px;
+    width: 100%;
+    color: var(--color-muted-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.see-all-btn:hover {
+    background: var(--color-input-bg);
+    color: var(--color-text);
+}
+
+/* Activity */
+.activity-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 16px;
+}
+
+.activity-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.activity-stats .stat {
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.activity-stats .stat-value {
+    color: var(--color-text);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.activity-stats .stat-label {
+    color: var(--color-muted);
+    font-size: 12px;
+    text-transform: lowercase;
+}
+
+.sparkline-wrap {
+    margin-top: 8px;
+}
+
+.sparkline {
+    width: 100%;
+    height: 60px;
+    color: var(--color-muted-2);
+}
+
+.sparkline-footer {
+    color: var(--color-muted);
+    font-size: 11px;
+    margin-top: 6px;
+}
+
+/* Generic list container (questions/comments) */
+.list-container {
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+}
+
+.list-item {
+    background: var(--color-surface);
+    padding: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.list-item:last-child {
+    border-bottom: none;
+}
+
+.item-title {
+    color: var(--color-muted-2);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.item-title:hover {
+    color: var(--color-text);
+}
+
+.item-body {
+    color: var(--color-text);
+    font-size: 13px;
+}
+
+.item-meta {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.badge {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+
+.muted {
+    color: var(--color-muted);
+}
+
+/* Tags */
+.tags-container {
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: var(--color-surface);
+}
+
+.empty-state {
+    padding: 24px;
+    color: var(--color-muted);
+    text-align: center;
+}
+
+.tag-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 12px;
+}
+
+.tag {
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-input-bg);
+    color: var(--color-text);
+    font-size: 12px;
+}
+
+/* Honor Level Popup */
+.honor-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.honor-popup {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 1000px;
+    width: 95%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.honor-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.honor-popup-title {
+    color: var(--color-text);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.honor-levels-container {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+}
+
+.honor-level-card {
+    background: var(--color-input-bg);
+    border: 2px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.3s ease;
+    min-height: 280px;
+}
+
+.honor-level-card.current {
+    border-color: var(--color-white);
+    background: var(--color-panel);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.honor-level-header {
+    text-align: center;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+.honor-level-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--color-white);
+    color: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin: 0 auto 8px auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.honor-level-card.current .honor-level-badge {
+    background: var(--color-white);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+.honor-level-name {
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.current-badge {
+    background: var(--color-white);
+    color: var(--color-surface);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+}
+
+.honor-level-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.honor-section {
+    flex: 1;
+}
+
+.honor-section-title {
+    color: var(--color-muted-2);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.honor-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.honor-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.honor-item.benefit {
+    color: var(--color-text);
+}
+
+.honor-item.benefit.inherited {
+    color: var(--color-muted-2);
+    font-style: italic;
+}
+
+.honor-item.restriction {
+    color: var(--color-muted);
+}
+
+.honor-item svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.honor-item.benefit svg {
+    color: #4ade80;
+}
+
+.honor-item.benefit.inherited svg {
+    color: #94a3b8;
+}
+
+.honor-item.restriction svg {
+    color: #f87171;
+}
+
+/* Follow Popups (Followers/Following) */
+.follow-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.follow-popup {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+.follow-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.follow-popup-title {
+    color: var(--color-text);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.follow-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.follow-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.follow-item:hover {
+    background: var(--color-input-bg);
+}
+
+.follow-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--color-surface);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.follow-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.follow-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.follow-name {
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.follow-username {
+    color: var(--color-muted);
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.follow-bio {
+    color: var(--color-muted-2);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.follow-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--color-border);
+    background: var(--color-input-bg);
+    color: var(--color-text);
+    flex-shrink: 0;
+}
+
+.follow-btn:hover {
+    background: var(--color-input-focus);
+    border-color: var(--color-input-focus);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .public-profile-layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .public-profile-sidebar {
+        position: static;
+    }
+
+    .notes-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .public-profile-content {
+        padding: 20px 16px;
+    }
+
+    .honor-levels-container {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .honor-level-card {
+        min-height: auto;
+    }
+
+    .honor-popup {
+        padding: 20px;
+        margin: 20px;
+    }
+
+    .follow-popup {
+        padding: 20px;
+        margin: 20px;
+        max-width: none;
+        width: calc(100vw - 40px);
+    }
+
+    .follow-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+
+    .follow-info {
+        text-align: center;
+    }
+}
