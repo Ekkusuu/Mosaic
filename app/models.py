@@ -53,3 +53,11 @@ class File(SQLModel, table=True):
     filepath: str
     owner_id: int = Field(foreign_key="user.id")
     owner: Optional[User] = Relationship(back_populates="files")
+
+# Email verification models
+class EmailVerificationRequest(SQLModel):
+    email: str
+    code: str
+
+class EmailResendRequest(SQLModel):
+    email: str

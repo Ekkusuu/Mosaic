@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Auth.css';
 import Logo from './Logo';
 import HexagonBackground from './HexagonBackground';
+import EmailVerificationPopup from './EmailVerificationPopup';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -11,6 +12,14 @@ const Auth: React.FC = () => {
     const [showPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showVerification, setShowVerification] = useState(false);
+    const [verificationLoading, setVerificationLoading] = useState(false);
+    const [verificationError, setVerificationError] = useState('');
+    const [pendingRegistrationData, setPendingRegistrationData] = useState<{
+        email: string;
+        password: string;
+        name: string;
+    } | null>(null);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -57,17 +66,17 @@ const Auth: React.FC = () => {
                 console.log('Login successful:', userData);
                 navigate('/', { replace: true });
             } else {
-                // Register logic
+                // Register logic - validate first, then show verification popup
                 if (formData.password !== formData.confirmPassword) {
                     throw new Error('Passwords do not match');
                 }
 
-                const response = await fetch(`${API_BASE_URL}/users/register`, {
+                // First, validate the registration data with the backend
+                const validationResponse = await fetch(`${API_BASE_URL}/users/validate-registration`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    credentials: 'include', // Important for cookies
                     body: JSON.stringify({
                         email: formData.email,
                         password: formData.password,
@@ -75,14 +84,18 @@ const Auth: React.FC = () => {
                     }),
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || 'Registration failed');
+                if (!validationResponse.ok) {
+                    const errorData = await validationResponse.json();
+                    throw new Error(errorData.detail || 'Validation failed');
                 }
 
-                const userData = await response.json();
-                console.log('Registration successful:', userData);
-                navigate('/', { replace: true });
+                // If validation passes, store the data and show verification popup
+                setPendingRegistrationData({
+                    email: formData.email,
+                    password: formData.password,
+                    name: formData.name
+                });
+                setShowVerification(true);
             }
         } catch (err: any) {
             setError(err.message);
@@ -96,12 +109,108 @@ const Auth: React.FC = () => {
     const switchMode = () => {
         setIsLogin(!isLogin);
         setError(''); // Clear error when switching modes
+        setShowVerification(false); // Close verification popup when switching modes
+        setVerificationError(''); // Clear verification errors
+        setPendingRegistrationData(null); // Clear pending data
         setFormData({
             email: '',
             password: '',
             confirmPassword: '',
             name: ''
         });
+    };
+
+    const handleVerifyCode = async (code: string) => {
+        if (!pendingRegistrationData) {
+            setVerificationError('No registration data found');
+            return;
+        }
+
+        setVerificationLoading(true);
+        setVerificationError('');
+
+        try {
+            // First verify the code
+            const verifyResponse = await fetch(`${API_BASE_URL}/users/verify-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: pendingRegistrationData.email,
+                    code: code
+                }),
+            });
+
+            if (!verifyResponse.ok) {
+                const errorData = await verifyResponse.json();
+                throw new Error(errorData.detail || 'Verification failed');
+            }
+
+            // If verification successful, complete the registration
+            const registerResponse = await fetch(`${API_BASE_URL}/users/register`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(pendingRegistrationData),
+            });
+
+            if (!registerResponse.ok) {
+                const errorData = await registerResponse.json();
+                throw new Error(errorData.detail || 'Registration failed');
+            }
+
+            const userData = await registerResponse.json();
+            console.log('Registration successful:', userData);
+            
+            // Clear states and navigate
+            setShowVerification(false);
+            setPendingRegistrationData(null);
+            navigate('/', { replace: true });
+        } catch (err: any) {
+            setVerificationError(err.message);
+            console.error('Verification error:', err);
+        } finally {
+            setVerificationLoading(false);
+        }
+    };
+
+    const handleResendCode = async () => {
+        if (!pendingRegistrationData) {
+            setVerificationError('No registration data found');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/resend-verification`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: pendingRegistrationData.email
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to resend code');
+            }
+
+            setVerificationError(''); // Clear any previous errors
+            console.log('Verification code resent');
+        } catch (err: any) {
+            setVerificationError(err.message);
+            console.error('Resend error:', err);
+        }
+    };
+
+    const handleCloseVerification = () => {
+        setShowVerification(false);
+        setVerificationError('');
+        // Keep pendingRegistrationData in case user wants to try again
     };
 
     const navigate = useNavigate();
@@ -220,6 +329,16 @@ const Auth: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            <EmailVerificationPopup
+                isOpen={showVerification}
+                onClose={handleCloseVerification}
+                onVerify={handleVerifyCode}
+                email={pendingRegistrationData?.email || ''}
+                loading={verificationLoading}
+                error={verificationError}
+                onResendCode={handleResendCode}
+            />
         </div>
     );
 };
