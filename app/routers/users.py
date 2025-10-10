@@ -1,28 +1,32 @@
-# app/routers/users.py
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, BackgroundTasks, status
 from sqlmodel import Session, select
 from app.security import hash_password, verify_password
 from app.db import get_session
-from app.models import User, UserCreate, UserRead, UserLogin, EmailVerificationRequest, EmailResendRequest
+from app.models import (
+    User,
+    UserCreate,
+    UserRead,
+    UserLogin,
+    EmailVerificationRequest,
+    EmailResendRequest,
+    MessageResponse,
+    EmailVerification,
+)
 from app.validators import validate_username, validate_password, validate_email_domain
 from datetime import datetime, timedelta, timezone
 import jwt
 import os
-import random
+import secrets
 import string
 from dotenv import load_dotenv
+from app.email_utils import send_verification_email
 
 load_dotenv()
 SECRET_KEY = os.getenv("JWT_SECRET", "")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1"))
-
-# Simple in-memory store for verification codes (in production, use Redis or database)
-verification_codes = {}
-
-def generate_verification_code() -> str:
-    """Generate a 6-digit verification code"""
-    return ''.join(random.choices(string.digits, k=6))
+EMAIL_CODE_EXPIRATION_MINUTES = int(os.getenv("EMAIL_CODE_EXPIRATION_MINUTES", "15"))
+VERIFICATION_CODE_LENGTH = 6
 
 
 def create_access_token(*, data: dict, expires_delta: timedelta | None = None) -> str:
@@ -31,6 +35,17 @@ def create_access_token(*, data: dict, expires_delta: timedelta | None = None) -
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def generate_verification_code(length: int = VERIFICATION_CODE_LENGTH) -> str:
+    alphabet = string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def ensure_aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def set_auth_cookie(response: Response, token: str) -> None:
@@ -70,14 +85,12 @@ def get_user_from_token(request: Request, session: Session) -> User:
 
 router = APIRouter()
 
-@router.post("/register", response_model=UserRead)
-def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
-    # check if email exists
+@router.post("/validate-registration", response_model=MessageResponse)
+def validate_registration(user_in: UserCreate, session: Session = Depends(get_session)) -> MessageResponse:
     existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing:
+    if existing and existing.is_verified:
         raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # validations
+
     try:
         validate_username(user_in.name)
         validate_password(user_in.password)
@@ -85,25 +98,77 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    user = User(
-        email=user_in.email,
-        name=user_in.name,
-        hashed_password=hash_password(user_in.password)
-    )
-    session.add(user)
+    return MessageResponse(message="Registration data is valid")
+
+
+@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
+def register_user(
+    user_in: UserCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> MessageResponse:
+    existing = session.exec(select(User).where(User.email == user_in.email)).first()
+    if existing and existing.is_verified:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    try:
+        validate_username(user_in.name)
+        validate_password(user_in.password)
+        validate_email_domain(user_in.email)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    verification_code = generate_verification_code()
+    verification_hash = hash_password(verification_code)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
+
+    if existing and not existing.is_verified:
+        existing.name = user_in.name
+        existing.hashed_password = hash_password(user_in.password)
+        existing.is_verified = False
+        user = existing
+    else:
+        user = User(
+            email=user_in.email,
+            name=user_in.name,
+            hashed_password=hash_password(user_in.password),
+            is_verified=False,
+        )
+        session.add(user)
+
+    session.flush()
+
+    verification = session.exec(
+        select(EmailVerification).where(EmailVerification.user_id == user.id)
+    ).first()
+
+    if verification:
+        verification.code_hash = verification_hash
+        verification.expires_at = expires_at
+        verification.created_at = datetime.now(timezone.utc)
+    else:
+        verification = EmailVerification(
+            user_id=user.id,
+            code_hash=verification_hash,
+            expires_at=expires_at,
+        )
+        session.add(verification)
+
     session.commit()
     session.refresh(user)
-    
-    token = create_access_token(data={"sub": str(user.id)})
-    set_auth_cookie(response, token)
 
-    return user
+    background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
+
+    return MessageResponse(message="Verification code sent to your email")
 
 @router.post("/login", response_model=UserRead)
 def login_user(login_data: UserLogin, response: Response, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == login_data.email)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
     
     if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -112,6 +177,86 @@ def login_user(login_data: UserLogin, response: Response, session: Session = Dep
     set_auth_cookie(response, token)
     
     return user
+
+
+@router.post("/verify-email", response_model=UserRead)
+def verify_email(
+    payload: EmailVerificationRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> UserRead:
+    user = session.exec(select(User).where(User.email == payload.email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_verified:
+        raise HTTPException(status_code=400, detail="Email already verified")
+
+    verification = session.exec(
+        select(EmailVerification).where(EmailVerification.user_id == user.id)
+    ).first()
+
+    if not verification:
+        raise HTTPException(status_code=400, detail="No verification code found")
+
+    if ensure_aware(verification.expires_at) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Verification code expired")
+
+    if not verify_password(payload.code, verification.code_hash):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    user.is_verified = True
+
+    session.add(user)
+    session.delete(verification)
+    session.commit()
+    session.refresh(user)
+
+    token = create_access_token(data={"sub": str(user.id)})
+    set_auth_cookie(response, token)
+
+    return user
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+def resend_verification(
+    payload: EmailResendRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> MessageResponse:
+    user = session.exec(select(User).where(User.email == payload.email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.is_verified:
+        raise HTTPException(status_code=400, detail="Email already verified")
+
+    verification_code = generate_verification_code()
+    verification_hash = hash_password(verification_code)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
+
+    verification = session.exec(
+        select(EmailVerification).where(EmailVerification.user_id == user.id)
+    ).first()
+
+    if verification:
+        verification.code_hash = verification_hash
+        verification.expires_at = expires_at
+        verification.created_at = datetime.now(timezone.utc)
+    else:
+        verification = EmailVerification(
+            user_id=user.id,
+            code_hash=verification_hash,
+            expires_at=expires_at,
+        )
+        session.add(verification)
+
+    session.commit()
+    session.refresh(user)
+
+    background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
+
+    return MessageResponse(message="Verification code resent")
 
 @router.post("/logout")
 def logout_user(response: Response):
@@ -126,73 +271,3 @@ def get_current_user(request: Request, session: Session = Depends(get_session)):
 @router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):
     return session.exec(select(User)).all()
-
-@router.post("/validate-registration")
-def validate_registration(user_in: UserCreate, session: Session = Depends(get_session)):
-    """Validate registration data and send verification code without creating user"""
-    # Check if email already exists
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Validate the data
-    try:
-        validate_username(user_in.name)
-        validate_password(user_in.password)
-        validate_email_domain(user_in.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    # Generate and store verification code
-    code = generate_verification_code()
-    verification_codes[user_in.email] = {
-        'code': code,
-        'timestamp': datetime.now(timezone.utc),
-        'expires_at': datetime.now(timezone.utc) + timedelta(minutes=10)
-    }
-    
-    # In production, send the code via email here
-    print(f"Verification code for {user_in.email}: {code}")  # For development
-    
-    return {"message": "Validation successful, verification code sent"}
-
-@router.post("/verify-email")
-def verify_email(request: EmailVerificationRequest):
-    """Verify the email verification code"""
-    stored_data = verification_codes.get(request.email)
-    
-    if not stored_data:
-        raise HTTPException(status_code=400, detail="No verification code found for this email")
-    
-    if datetime.now(timezone.utc) > stored_data['expires_at']:
-        # Clean up expired code
-        verification_codes.pop(request.email, None)
-        raise HTTPException(status_code=400, detail="Verification code has expired")
-    
-    if stored_data['code'] != request.code:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-    
-    # Code is valid, remove it from storage
-    verification_codes.pop(request.email, None)
-    
-    return {"message": "Email verified successfully"}
-
-@router.post("/resend-verification")
-def resend_verification(request: EmailResendRequest):
-    """Resend verification code"""
-    # Check if there's an existing code for this email
-    if request.email not in verification_codes:
-        raise HTTPException(status_code=400, detail="No pending verification for this email")
-    
-    # Generate new code
-    code = generate_verification_code()
-    verification_codes[request.email] = {
-        'code': code,
-        'timestamp': datetime.now(timezone.utc),
-        'expires_at': datetime.now(timezone.utc) + timedelta(minutes=10)
-    }
-    
-    # In production, send the code via email here
-    print(f"New verification code for {request.email}: {code}")  # For development
-    
-    return {"message": "Verification code resent"}

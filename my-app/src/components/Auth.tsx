@@ -17,7 +17,6 @@ const Auth: React.FC = () => {
     const [verificationError, setVerificationError] = useState('');
     const [pendingRegistrationData, setPendingRegistrationData] = useState<{
         email: string;
-        password: string;
         name: string;
     } | null>(null);
     const [formData, setFormData] = useState({
@@ -66,13 +65,12 @@ const Auth: React.FC = () => {
                 console.log('Login successful:', userData);
                 navigate('/', { replace: true });
             } else {
-                // Register logic - validate first, then show verification popup
+                // Register logic - send verification code via backend
                 if (formData.password !== formData.confirmPassword) {
                     throw new Error('Passwords do not match');
                 }
 
-                // First, validate the registration data with the backend
-                const validationResponse = await fetch(`${API_BASE_URL}/users/validate-registration`, {
+                const registerResponse = await fetch(`${API_BASE_URL}/users/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -84,17 +82,16 @@ const Auth: React.FC = () => {
                     }),
                 });
 
-                if (!validationResponse.ok) {
-                    const errorData = await validationResponse.json();
-                    throw new Error(errorData.detail || 'Validation failed');
+                if (!registerResponse.ok) {
+                    const errorData = await registerResponse.json();
+                    throw new Error(errorData.detail || 'Registration failed');
                 }
 
-                // If validation passes, store the data and show verification popup
                 setPendingRegistrationData({
                     email: formData.email,
-                    password: formData.password,
                     name: formData.name
                 });
+                setVerificationError('');
                 setShowVerification(true);
             }
         } catch (err: any) {
@@ -147,27 +144,13 @@ const Auth: React.FC = () => {
                 throw new Error(errorData.detail || 'Verification failed');
             }
 
-            // If verification successful, complete the registration
-            const registerResponse = await fetch(`${API_BASE_URL}/users/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify(pendingRegistrationData),
-            });
-
-            if (!registerResponse.ok) {
-                const errorData = await registerResponse.json();
-                throw new Error(errorData.detail || 'Registration failed');
-            }
-
-            const userData = await registerResponse.json();
-            console.log('Registration successful:', userData);
+            const userData = await verifyResponse.json();
+            console.log('Verification successful:', userData);
             
             // Clear states and navigate
             setShowVerification(false);
             setPendingRegistrationData(null);
+            setFormData({ email: '', password: '', confirmPassword: '', name: '' });
             navigate('/', { replace: true });
         } catch (err: any) {
             setVerificationError(err.message);

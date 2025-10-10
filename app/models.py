@@ -1,6 +1,7 @@
 # app/models.py (update)
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
+from datetime import datetime, timezone
 
 class UserBase(SQLModel):
     email: str
@@ -9,8 +10,12 @@ class UserBase(SQLModel):
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str
+    is_verified: bool = Field(default=False)
     profiles: List["StudentProfile"] = Relationship(back_populates="user")
     files: List["File"] = Relationship(back_populates="owner")
+    verification: Optional["EmailVerification"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"uselist": False}
+    )
 
 class UserCreate(UserBase):
     password: str  # raw password from request
@@ -21,6 +26,7 @@ class UserLogin(SQLModel):
 
 class UserRead(UserBase):
     id: int
+    is_verified: bool
 
 class StudentProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -61,3 +67,16 @@ class EmailVerificationRequest(SQLModel):
 
 class EmailResendRequest(SQLModel):
     email: str
+
+
+class MessageResponse(SQLModel):
+    message: str
+
+
+class EmailVerification(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", unique=True)
+    code_hash: str = Field(max_length=255)
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user: Optional[User] = Relationship(back_populates="verification")
