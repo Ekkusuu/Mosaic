@@ -87,6 +87,4 @@ def email_domain_allowed(email: str) -> bool:
 
 def validate_email_domain(email: str):
     if not email_domain_allowed(email):
-        allowed_sample = list(get_allowed_email_domains())[:5]
-        hint = f" Example allowed domains: {', '.join(allowed_sample)}" if allowed_sample else ""
-        raise ValueError("Email domain not allowed." + hint)
+        raise ValueError("The email provided is not an university email.")
