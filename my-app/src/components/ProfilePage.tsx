@@ -534,22 +534,23 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <div className="notes-grid">
                                 {publicNotes.map(note => (
-                                    <div key={note.id} className="note-card">
+                                    <div 
+                                        key={note.id} 
+                                        className="note-card"
+                                        onClick={() => handleViewNote(note)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
                                         <div className="note-header">
                                             <div className="note-header-left">
-                                                <a 
-                                                    href="#" 
-                                                    className="note-title"
-                                                    onClick={(e) => { e.preventDefault(); handleViewNote(note); }}
-                                                >
+                                                <div className="note-title">
                                                     {note.title}
-                                                </a>
+                                                </div>
                                                 <span className="note-visibility">{note.visibility}</span>
                                             </div>
                                             <div className="note-actions">
                                                 <button 
                                                     className="note-edit-btn" 
-                                                    onClick={() => handleEditNote(note)}
+                                                    onClick={(e) => { e.stopPropagation(); handleEditNote(note); }}
                                                     aria-label="Edit note"
                                                     title="Edit this note"
                                                 >
@@ -560,11 +561,7 @@ const ProfilePage: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <p 
-                                            className="note-description"
-                                            onClick={() => handleViewNote(note)}
-                                            style={{ cursor: 'pointer' }}
-                                        >
+                                        <p className="note-description">
                                             {note.description}
                                         </p>
                                         <div className="note-meta">
@@ -591,8 +588,13 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <div className="list-container">
                                 {userQuestions.map(q => (
-                                    <div key={q.id} className="list-item">
-                                        <a href="#" className="item-title">{q.title}</a>
+                                    <div 
+                                        key={q.id} 
+                                        className="list-item"
+                                        onClick={() => console.log('Question clicked:', q.title)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <div className="item-title">{q.title}</div>
                                         <div className="item-meta">
                                             <span className="badge">{q.votes} votes</span>
                                             <span className="badge">{q.answers} answers</span>
@@ -616,7 +618,12 @@ const ProfilePage: React.FC = () => {
                             </div>
                             <div className="list-container">
                                 {userComments.map(c => (
-                                    <div key={c.id} className="list-item">
+                                    <div 
+                                        key={c.id} 
+                                        className="list-item"
+                                        onClick={() => console.log('Comment clicked:', c.content)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
                                         <div className="item-body">{c.content}</div>
                                         <div className="item-meta">
                                             <span className="muted">{c.timestamp}</span>
