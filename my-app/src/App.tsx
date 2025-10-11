@@ -4,6 +4,7 @@ import MainPage from './components/MainPage';
 import Auth from './components/Auth';
 import ProfilePage from './components/ProfilePage';
 import RequireAuth from './components/RequireAuth';
+import PublicProfile from "./components/PublicProfile.tsx";
 
 function App() {
     return (
@@ -12,6 +13,7 @@ function App() {
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={<RequireAuth><MainPage /></RequireAuth>} />
                 <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+                <Route path="/pp" element={<PublicProfile />} />
             </Routes>
         </BrowserRouter>
     );

@@ -316,13 +316,18 @@ const MainPage: React.FC = () => {
                 <div className="section-header"><h2 className="section-title">Interesting posts for you</h2></div>
                 <div className="posts-container">
                   {postFeed.map(post => (
-                    <article key={post.id} className="post-row">
+                    <article 
+                      key={post.id} 
+                      className="post-row"
+                      onClick={() => console.log('Post clicked:', post.title)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <div className="card-stats">
                         <span className="stat"><strong>{post.votes}</strong> votes</span>
                         <span className="stat"><strong>{post.answers}</strong> answers</span>
                         <span className="stat muted">{post.views} views</span>
                       </div>
-                      <a href="#" className="card-title">{post.title}</a>
+                      <div className="card-title">{post.title}</div>
                       <div className="card-footer">
                         <div className="tags">
                           {post.tags.map(t => (
@@ -341,8 +346,13 @@ const MainPage: React.FC = () => {
                 <div className="notes-container">
                   <div className="card-grid">
                     {publicNotesFeed.map(note => (
-                      <article key={note.id} className="note-card" onClick={() => handleNoteClick(note)}>
-                        <a href="#" className="card-title" onClick={(e) => { e.preventDefault(); handleNoteClick(note); }}>{note.title}</a>
+                      <article 
+                        key={note.id} 
+                        className="note-card" 
+                        onClick={() => handleNoteClick(note)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="card-title">{note.title}</div>
                         <p className="note-summary">{note.summary}</p>
                         <div className="tags">
                           {note.tags.map(t => (
