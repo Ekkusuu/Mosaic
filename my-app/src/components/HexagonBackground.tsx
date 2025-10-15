@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import './HexagonBackground.css';
 
-// Easy-to-change global color bounds (grayscale) as hex strings
-const MIN_COLOR = '#000000ff'; // near-black
-const MAX_COLOR = '#646464ff'; // near-white
+// Helper function to get CSS variable color and convert to RGB
+function getCSSColorAsRgb(varName: string): { r: number, g: number, b: number } {
+    const hexColor = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return hexToRgb(hexColor);
+}
 
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '');
@@ -13,9 +15,6 @@ function hexToRgb(hex: string) {
     const b = parseInt(short ? clean[2] + clean[2] : clean.substring(4, 6), 16);
     return { r, g, b };
 }
-
-const MIN_RGB = hexToRgb(MIN_COLOR);
-const MAX_RGB = hexToRgb(MAX_COLOR);
 
 // Small Perlin noise implementation (2D) adapted for this component
 function createPerlin() {
@@ -163,18 +162,18 @@ const HexagonBackground: React.FC = () => {
         };
         buildGrid();
 
-        const drawHexagon = (x: number, y: number, fillLevel: number) => {
+        const drawHexagon = (x: number, y: number, fillLevel: number, minRgb: {r: number, g: number, b: number}, maxRgb: {r: number, g: number, b: number}) => {
             const path = hexPathRef.current;
             if (!path) return;
 
             // Skip if completely offscreen (simple culling)
             if (x < -hexRadius || x > canvas.width + hexRadius || y < -hexRadius || y > canvas.height + hexRadius) return;
 
-            // Grayscale color interpolation (black <-> white) for monochrome hexagons
+            // Color interpolation between min and max colors based on fill level
             const t = fillLevel; // 0..1
-            const r = Math.round(MIN_RGB.r + (MAX_RGB.r - MIN_RGB.r) * t);
-            const g = Math.round(MIN_RGB.g + (MAX_RGB.g - MIN_RGB.g) * t);
-            const b = Math.round(MIN_RGB.b + (MAX_RGB.b - MIN_RGB.b) * t);
+            const r = Math.round(minRgb.r + (maxRgb.r - minRgb.r) * t);
+            const g = Math.round(minRgb.g + (maxRgb.g - minRgb.g) * t);
+            const b = Math.round(minRgb.b + (maxRgb.b - minRgb.b) * t);
 
             // Position via transform, avoid save/restore
             ctx.setTransform(1, 0, 0, 1, x, y);
@@ -204,6 +203,11 @@ const HexagonBackground: React.FC = () => {
 
             // Background gradient handled via CSS; no canvas fill required
 
+            // Get current theme colors from CSS variables
+            const minRgb = getCSSColorAsRgb('--hex-color-min');
+            const maxRgb = getCSSColorAsRgb('--hex-color-max');
+            const strokeColor = getComputedStyle(document.documentElement).getPropertyValue('--hex-stroke').trim();
+
             // faster time factor for snappier animation
             const time = _now * 0.003;
 
@@ -216,8 +220,8 @@ const HexagonBackground: React.FC = () => {
                 denom += amps[o] * Math.abs(m);
             }
 
-            // Set constant stroke state once per frame
-            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            // Set constant stroke state once per frame from CSS variable
+            ctx.strokeStyle = strokeColor || 'rgba(0,0,0,0.12)';
             ctx.lineWidth = 1;
 
             hexagonsRef.current.forEach((hex) => {
@@ -239,7 +243,7 @@ const HexagonBackground: React.FC = () => {
                 hex.fillLevel += (hex.targetFillLevel - hex.fillLevel) * smooth;
                 hex.fillLevel = Math.max(0, Math.min(1, hex.fillLevel));
 
-                drawHexagon(hex.x, hex.y, hex.fillLevel);
+                drawHexagon(hex.x, hex.y, hex.fillLevel, minRgb, maxRgb);
             });
 
             animationRef.current = requestAnimationFrame(animate);

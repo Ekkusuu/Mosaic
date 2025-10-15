@@ -99,12 +99,11 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onOpenSettings }) => {
             ))}
             <li>
               <button 
-                className="nav-item" 
+                className="nav-item nav-item-button" 
                 onClick={() => { 
                   onClose(); 
                   onOpenSettings(); 
                 }}
-                style={{ width: '100%', background: 'transparent', border: 'none', cursor: 'pointer' }}
               >
                 <span className="nav-icon">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

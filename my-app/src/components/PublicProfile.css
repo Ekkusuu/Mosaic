@@ -82,7 +82,7 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: var(--color-white);
+    background: var(--color-contrast);
     margin: 0 auto 16px auto;
     display: flex;
     align-items: center;
@@ -216,8 +216,8 @@
 .follow-profile-btn {
     width: 100%;
     height: 36px;
-    background: var(--color-white);
-    border: 1px solid var(--color-white);
+    background: var(--color-contrast);
+    border: 1px solid var(--color-contrast);
     border-radius: 6px;
     color: var(--color-surface);
     font-size: 13px;
@@ -614,7 +614,7 @@
 }
 
 .honor-level-card.current {
-    border-color: var(--color-white);
+    border-color: var(--color-contrast);
     background: var(--color-panel);
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
 }
@@ -629,7 +629,7 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--color-white);
+    background: var(--color-contrast);
     color: var(--color-surface);
     display: flex;
     align-items: center;
@@ -641,7 +641,7 @@
 }
 
 .honor-level-card.current .honor-level-badge {
-    background: var(--color-white);
+    background: var(--color-contrast);
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
@@ -653,7 +653,7 @@
 }
 
 .current-badge {
-    background: var(--color-white);
+    background: var(--color-contrast);
     color: var(--color-surface);
     font-size: 10px;
     font-weight: 600;
@@ -798,7 +798,7 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: var(--color-white);
+    background: var(--color-contrast);
     display: flex;
     align-items: center;
     justify-content: center;

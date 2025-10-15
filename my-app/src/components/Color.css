@@ -1,5 +1,6 @@
 /* Global color variables for the app. Import this file where colors are needed. */
-:root {
+/* Default Theme - Dark Mode */
+.theme-default {
     /* ========================================
        BASE COLORS - Core UI Elements
        ======================================== */
@@ -10,7 +11,9 @@
     --color-input-bg: #2B2B2B; /* text inputs, textareas background */
     --color-input-border: #4F4F4F; /* input borders (normal state) */
     --color-input-focus: #3a3a3a; /* input borders (focused), also button borders and accents */
-    --color-white: #ffffff; /* pure white for text/icons on dark backgrounds */
+    --color-contrast: #ffffff; /* high contrast color for text/icons on dark backgrounds */
+    --color-logo: #ffffff; /* logo color */
+    --logo-filter: invert(1) brightness(2) saturate(0); /* logo SVG filter (white) */
     
     /* ========================================
        TEXT COLORS
@@ -112,4 +115,7 @@
        ======================================== */
     --hex-bg-light: #f6f6f6; /* hexagon background gradient light end */
     --hex-bg-dark: #e8e8e8; /* hexagon background gradient dark end */
+    --hex-color-min: #000000; /* hexagon fill color minimum (darkest) */
+    --hex-color-max: #646464; /* hexagon fill color maximum (lightest) */
+    --hex-stroke: rgba(0, 0, 0, 0.12); /* hexagon outline stroke color */
 }

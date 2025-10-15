@@ -177,7 +177,7 @@
   width: 120px;
   height: auto;
   display: block;
-  filter: invert(1) brightness(2) saturate(0);
+  filter: var(--logo-filter);
 }
 
 .sidebar .close-btn {
@@ -235,6 +235,14 @@
   border-color: var(--color-border);
   transform: translateX(4px);
   box-shadow: 0 6px 20px var(--shadow-sm) inset;
+}
+
+/* Button version of nav-item (for Settings button) */
+.nav-item-button {
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
 }
 
 .nav-icon {

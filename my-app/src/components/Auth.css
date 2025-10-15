@@ -91,7 +91,7 @@
     border: 1px solid var(--color-input-border);
     border-radius: 8px;
     padding: 0 36px 0 12px;
-    color: var(--color-white);
+    color: var(--color-contrast);
     font-size: 14px;
     transition: all 0.2s;
     outline: none;
@@ -134,7 +134,7 @@
     background: transparent;
     border: 1px solid var(--color-btn-border);
     border-radius: 8px;
-    color: var(--color-white);
+    color: var(--color-contrast);
     font-size: 15px;
     font-weight: 500;
     cursor: pointer;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './SettingsPopup.css';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SettingsPopupProps {
   isOpen: boolean;
@@ -8,13 +9,13 @@ interface SettingsPopupProps {
 
 const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
   const [activeSection, setActiveSection] = useState<'account' | 'preferences' | 'privacy' | 'notifications'>('account');
+  const { theme, setTheme } = useTheme();
   
   // Mock settings state
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
   const [publicProfile, setPublicProfile] = useState(true);
   const [showEmail, setShowEmail] = useState(false);
-  const [theme, setTheme] = useState('dark');
   const [language, setLanguage] = useState('en');
 
   if (!isOpen) return null;
@@ -153,16 +154,10 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
                       id="theme"
                       className="settings-select"
                       value={theme}
-                      onChange={(e) => setTheme(e.target.value)}
+                      onChange={(e) => setTheme(e.target.value as 'default' | 'honeycomb')}
                     >
-                      <option value="dark">Dark</option>
-                      <option value="light">Light</option>
-                      <option value="midnight">Midnight Blue</option>
-                      <option value="forest">Forest Green</option>
-                      <option value="sunset">Sunset Orange</option>
-                      <option value="ocean">Ocean Blue</option>
-                      <option value="purple">Purple Haze</option>
-                      <option value="auto">Auto (System)</option>
+                      <option value="default">Default (Dark)</option>
+                      <option value="honeycomb">Honeycomb (Golden)</option>
                     </select>
                   </div>
 
