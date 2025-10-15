@@ -1,0 +1,119 @@
+/* Sakura Theme - Soft pinks and spring blossom tones inspired by cherry blossoms */
+.theme-sakura {
+    /* ========================================
+       BASE COLORS - Core UI Elements
+       ======================================== */
+    --color-bg: #fef5f8; /* soft blush background */
+    --color-surface: #2d1a24; /* deep plum surface */
+    --color-border: #4a2d3f; /* dusty rose border */
+    --color-panel: #1f131b; /* darker panel */
+    --color-input-bg: #362029; /* rose brown input */
+    --color-input-border: #5a3a4f; /* medium rose border */
+    --color-input-focus: #f472b6; /* bright pink focus */
+    --color-contrast: #fef9fb; /* high contrast soft white */
+   --color-logo: #FF69B4; /* logo color - vibrant sakura pink */
+    
+    /* ========================================
+       TEXT COLORS
+       ======================================== */
+    --color-text: #fda4c4; /* soft pink text */
+    --color-placeholder: #8a6672; /* muted mauve */
+    --color-muted: #b98999; /* light dusty rose */
+    --color-muted-2: #7a5463; /* darker mauve */
+    
+    /* ========================================
+       SHADOWS - Box Shadow Effects
+       ======================================== */
+    --shadow-sm: rgba(45, 26, 36, 0.15);
+    --shadow-md: rgba(45, 26, 36, 0.2);
+    --shadow-md-2: rgba(45, 26, 36, 0.22);
+    --shadow-md-3: rgba(45, 26, 36, 0.25);
+    --shadow-lg: rgba(45, 26, 36, 0.28);
+    --shadow-lg-2: rgba(45, 26, 36, 0.3);
+    --shadow-xl: rgba(45, 26, 36, 0.35);
+    --shadow-xl-2: rgba(45, 26, 36, 0.4);
+    --shadow-2xl: rgba(45, 26, 36, 0.45);
+    
+    /* ========================================
+       OVERLAYS - Modal & Popup Backgrounds
+       ======================================== */
+    --overlay-dark: rgba(45, 26, 36, 0.65);
+    --overlay-dark-2: rgba(45, 26, 36, 0.75);
+    --overlay-dark-3: rgba(45, 26, 36, 0.85);
+    --overlay-dark-4: rgba(45, 26, 36, 0.9);
+    
+    /* ========================================
+       GRADIENTS & HIGHLIGHTS
+       ======================================== */
+    --gradient-light-start: rgba(253, 164, 196, 0.08);
+    --gradient-light-end: rgba(253, 164, 196, 0);
+    --gradient-blue: rgba(244, 114, 182, 0.1);
+    --inset-light-sm: rgba(253, 164, 196, 0.1);
+    --inset-light-md: rgba(253, 164, 196, 0.15);
+    --inset-light-lg: rgba(253, 164, 196, 0.2);
+    --color-overlay-line: rgba(244, 114, 182, 0.12);
+    
+    /* ========================================
+       STATUS COLORS - States & Indicators
+       ======================================== */
+    /* Success (soft green) */
+    --color-success: #4ade80;
+    --color-success-bg: rgba(74, 222, 128, 0.15);
+    --color-success-border: rgba(74, 222, 128, 0.4);
+    
+    /* Error (soft red) */
+    --color-error: #f87171;
+    --color-error-bg: rgba(248, 113, 113, 0.15);
+    --color-error-border: rgba(248, 113, 113, 0.4);
+    
+    /* Danger (rose red) */
+    --color-danger: #fb7185;
+    --color-danger-bg: rgba(251, 113, 133, 0.15);
+    
+    /* Info (soft blue) */
+    --color-info: #60a5fa;
+    --color-info-bg: rgba(96, 165, 250, 0.15);
+    --color-info-border: rgba(96, 165, 250, 0.4);
+    
+    /* Warning (peach) */
+    --color-warning: #fb923c;
+    --color-warning-bg: rgba(251, 146, 60, 0.15);
+    --color-warning-border: rgba(251, 146, 60, 0.4);
+    
+    /* Gray (lavender gray) */
+    --color-gray: #9ca3af;
+    --color-gray-bg: rgba(156, 163, 175, 0.15);
+    --color-gray-border: rgba(156, 163, 175, 0.4);
+    
+    /* ========================================
+       SUBJECT COLORS - Academic Subject Dots
+       ======================================== */
+    --subject-mathematics: #60a5fa; /* soft blue */
+    --subject-physics: #f87171; /* soft red */
+    --subject-chemistry: #4ade80; /* soft green */
+    --subject-biology: #34d399; /* emerald */
+    --subject-computer-science: #a78bfa; /* lavender */
+    --subject-economics: #fb923c; /* peach */
+    --subject-psychology: #f472b6; /* pink */
+    --subject-history: #c2410c; /* terracotta */
+    --subject-literature: #818cf8; /* indigo */
+    --subject-engineering: #6b7280; /* gray */
+    --subject-medicine: #fb7185; /* rose */
+    --subject-law: #4b5563; /* dark gray */
+    
+    /* ========================================
+       GRADIENT ACCENTS - Card Gradients
+       ======================================== */
+    --gradient-card-start: #f472b6;
+    --gradient-card-mid: #ec4899;
+    --gradient-card-end: #db2777;
+    
+    /* ========================================
+       HEXAGON BACKGROUND - Animated Canvas
+       ======================================== */
+    --hex-bg-light: #fef5f8;
+    --hex-bg-dark: #fce7f0;
+    --hex-color-min: #2d1a24; /* hexagon fill color minimum (deep plum) */
+    --hex-color-max: #fda4c4; /* hexagon fill color maximum (soft sakura pink) */
+   --hex-stroke: rgba(255, 105, 180, 0.18); /* hexagon outline stroke color - sakura pink, moderately pronounced */
+}

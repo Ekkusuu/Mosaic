@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Theme = 'default' | 'honeycomb' | 'forest';
+type Theme = 'default' | 'honeycomb' | 'forest' | 'coffee' | 'sakura';
 
 interface ThemeContextType {
   theme: Theme;
@@ -18,10 +18,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     console.log('Theme changing to:', theme);
     console.log('Current classes before:', document.documentElement.className);
-    // Remove all theme classes
-    document.documentElement.classList.remove('theme-default', 'theme-honeycomb', 'theme-forest');
-    // Add current theme class
-    document.documentElement.classList.add(`theme-${theme}`);
+  // Remove all theme classes
+  document.documentElement.classList.remove('theme-default', 'theme-honeycomb', 'theme-forest', 'theme-coffee', 'theme-sakura');
+  // Add current theme class
+  document.documentElement.classList.add(`theme-${theme}`);
     console.log('Current classes after:', document.documentElement.className);
     // Save to localStorage
     localStorage.setItem('mosaic-theme', theme);

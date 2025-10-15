@@ -3,6 +3,8 @@ import './App.css';
 import './components/Color.css';
 import './components/ColorThemeHoneycomb.css';
 import './components/ColorThemeForest.css';
+import './components/ColorThemeSakura.css';
+import './components/ColorThemeCoffee.css';
 import MainPage from './components/MainPage';
 import Auth from './components/Auth';
 import ProfilePage from './components/ProfilePage';
