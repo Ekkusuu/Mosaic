@@ -6,7 +6,7 @@
   border: 1px solid var(--color-border);
   border-top: none;
   border-radius: 0 0 16px 16px;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 34px var(--shadow-md-3);
   backdrop-filter: blur(10px) saturate(120%);
   display: grid;
   grid-template-rows: 1fr auto;
@@ -41,7 +41,7 @@
   border: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-panel) 85%, transparent);
   color: var(--color-text);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.16);
+  box-shadow: 0 6px 20px var(--shadow-sm);
   word-wrap: break-word;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -90,7 +90,7 @@
 
 .ai-send:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+  box-shadow: 0 8px 18px var(--shadow-md);
 }
 
 .ai-attach {
@@ -111,7 +111,7 @@
 
 .ai-attach:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+  box-shadow: 0 8px 18px var(--shadow-md);
 }
 
 .ai-attach-count {

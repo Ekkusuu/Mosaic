@@ -7,7 +7,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--overlay-dark-2);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -27,7 +27,7 @@
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px var(--shadow-2xl);
     animation: slideUp 0.3s ease-out;
     overflow: hidden;
 }
@@ -110,7 +110,7 @@
 .notes-search-input:focus {
     border-color: var(--color-input-focus);
     background: var(--color-panel);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 3px var(--inset-light-sm);
 }
 
 .notes-search-input:focus + .notes-search-icon {
@@ -202,7 +202,7 @@
     background: var(--color-panel);
     border-color: var(--color-input-focus);
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 25px var(--shadow-xl);
 }
 
 /* Note Card Header */
@@ -245,15 +245,15 @@
 }
 
 .note-visibility-popup.public {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-    border-color: rgba(34, 197, 94, 0.3);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: var(--color-success-border);
 }
 
 .note-visibility-popup.private {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-    border-color: rgba(249, 115, 22, 0.3);
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: var(--color-warning-border);
 }
 
 /* Note Actions */

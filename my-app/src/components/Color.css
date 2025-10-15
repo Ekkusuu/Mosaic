@@ -14,5 +14,75 @@
     --color-muted-2: #999999; /* secondary muted */
     --color-btn-border: #3a3a3a; /* button border */
     --color-overlay-line: rgba(255,255,255,0.03); /* overlay lines */
-    --color-white: #ffffff;
+    --color-white: #ffffff; /* pure white */
+    
+    /* Shadow colors (for box-shadow effects) */
+    --shadow-sm: rgba(0, 0, 0, 0.12); /* small shadow */
+    --shadow-sm-inset: rgba(0, 0, 0, 0.12); /* small inset shadow */
+    --shadow-md: rgba(0, 0, 0, 0.18); /* medium shadow */
+    --shadow-md-2: rgba(0, 0, 0, 0.2); /* medium shadow variant */
+    --shadow-md-3: rgba(0, 0, 0, 0.22); /* medium shadow variant 2 */
+    --shadow-lg: rgba(0, 0, 0, 0.25); /* large shadow */
+    --shadow-lg-2: rgba(0, 0, 0, 0.28); /* large shadow variant */
+    --shadow-xl: rgba(0, 0, 0, 0.3); /* extra large shadow */
+    --shadow-xl-2: rgba(0, 0, 0, 0.35); /* extra large shadow variant */
+    --shadow-2xl: rgba(0, 0, 0, 0.4); /* 2x extra large shadow */
+    
+    /* Overlay and translucent colors */
+    --overlay-dark: rgba(0, 0, 0, 0.6); /* dark overlay for modals */
+    --overlay-dark-2: rgba(0, 0, 0, 0.7); /* darker overlay */
+    --overlay-dark-3: rgba(0, 0, 0, 0.8); /* darkest overlay */
+    --overlay-dark-4: rgba(0, 0, 0, 0.85); /* extra dark overlay */
+    
+    /* Gradient accent colors */
+    --gradient-light-start: rgba(255, 255, 255, 0.04); /* light gradient start */
+    --gradient-light-end: rgba(255, 255, 255, 0); /* light gradient end */
+    --gradient-blue: rgba(80, 160, 255, 0.06); /* blue gradient accent */
+    
+    /* Inset and highlight colors */
+    --inset-light-sm: rgba(255, 255, 255, 0.05); /* small inset light */
+    --inset-light-md: rgba(255, 255, 255, 0.1); /* medium inset light */
+    --inset-light-lg: rgba(255, 255, 255, 0.15); /* large inset light */
+    
+    /* Status and subject colors */
+    --color-danger: #ff6b6b; /* danger/delete actions */
+    --color-danger-bg: rgba(255, 107, 107, 0.1); /* danger background */
+    --color-error: #ef4444; /* error state */
+    --color-error-bg: rgba(239, 68, 68, 0.1); /* error background */
+    --color-error-border: rgba(239, 68, 68, 0.3); /* error border */
+    --color-success: #22c55e; /* success/answered state */
+    --color-success-bg: rgba(34, 197, 94, 0.1); /* success background */
+    --color-success-border: rgba(34, 197, 94, 0.3); /* success border */
+    --color-info: #3b82f6; /* info/open state */
+    --color-info-bg: rgba(59, 130, 246, 0.1); /* info background */
+    --color-info-border: rgba(59, 130, 246, 0.3); /* info border */
+    --color-warning: #f97316; /* warning/private state */
+    --color-warning-bg: rgba(249, 115, 22, 0.1); /* warning background */
+    --color-warning-border: rgba(249, 115, 22, 0.3); /* warning border */
+    --color-gray: #6b7280; /* gray/closed state */
+    --color-gray-bg: rgba(107, 114, 128, 0.1); /* gray background */
+    --color-gray-border: rgba(107, 114, 128, 0.3); /* gray border */
+    
+    /* Subject dot colors */
+    --subject-mathematics: #2563eb; /* mathematics subject */
+    --subject-physics: #dc2626; /* physics subject */
+    --subject-chemistry: #16a34a; /* chemistry subject */
+    --subject-biology: #059669; /* biology subject */
+    --subject-computer-science: #7c3aed; /* computer science subject */
+    --subject-economics: #ea580c; /* economics subject */
+    --subject-psychology: #db2777; /* psychology subject */
+    --subject-history: #b45309; /* history subject */
+    --subject-literature: #4338ca; /* literature subject */
+    --subject-engineering: #374151; /* engineering subject */
+    --subject-medicine: #be123c; /* medicine subject */
+    --subject-law: #1f2937; /* law subject */
+    
+    /* Gradient colors for cards and accents */
+    --gradient-card-start: #3B82F6; /* card gradient start (blue) */
+    --gradient-card-mid: #1E40AF; /* card gradient middle (dark blue) */
+    --gradient-card-end: #3B82F6; /* card gradient end (blue) */
+    
+    /* Hexagon background colors */
+    --hex-bg-light: #f6f6f6; /* hexagon background light */
+    --hex-bg-dark: #e8e8e8; /* hexagon background dark */
 }

@@ -7,7 +7,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--overlay-dark-2);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -44,7 +44,7 @@
     max-height: 800px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px var(--shadow-2xl);
     animation: slideUp 0.3s ease-out;
     overflow: hidden;
 }
@@ -137,7 +137,7 @@
     background: var(--color-input-bg);
     border-color: var(--color-input-focus);
     color: var(--color-text);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-md-2);
 }
 
 .settings-nav-icon {
@@ -229,7 +229,7 @@
     outline: none;
     border-color: var(--color-input-focus);
     background: var(--color-surface);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 3px var(--inset-light-sm);
 }
 
 .settings-input::placeholder {
@@ -372,14 +372,14 @@
     background: var(--color-text);
     color: var(--color-surface);
     border: 1px solid var(--color-text);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--shadow-md-2);
 }
 
 .settings-btn-primary:hover {
     background: var(--color-muted-2);
     border-color: var(--color-muted-2);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 12px var(--shadow-lg);
 }
 
 .settings-btn-secondary {
@@ -395,12 +395,12 @@
 
 .settings-btn-danger {
     background: transparent;
-    color: #ff6b6b;
-    border: 1px solid #ff6b6b;
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
 }
 
 .settings-btn-danger:hover {
-    background: rgba(255, 107, 107, 0.1);
+    background: var(--color-danger-bg);
 }
 
 .settings-btn-ghost {

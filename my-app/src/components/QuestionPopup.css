@@ -7,7 +7,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--overlay-dark-2);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -27,7 +27,7 @@
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px var(--shadow-2xl);
     animation: slideUp 0.3s ease-out;
     overflow: hidden;
 }
@@ -132,7 +132,7 @@
     background: var(--color-panel);
     border-color: var(--color-input-focus);
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 25px var(--shadow-xl);
 }
 
 /* Question Card Header */
@@ -170,21 +170,21 @@
 }
 
 .question-status.open {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    border-color: rgba(59, 130, 246, 0.3);
+    background: var(--color-info-bg);
+    color: var(--color-info);
+    border-color: var(--color-info-border);
 }
 
 .question-status.answered {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-    border-color: rgba(34, 197, 94, 0.3);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: var(--color-success-border);
 }
 
 .question-status.closed {
-    background: rgba(107, 114, 128, 0.1);
-    color: #6b7280;
-    border-color: rgba(107, 114, 128, 0.3);
+    background: var(--color-gray-bg);
+    color: var(--color-gray);
+    border-color: var(--color-gray-border);
 }
 
 /* Question Actions */
@@ -282,51 +282,51 @@
 }
 
 .subject-dot.mathematics { 
-    background: #2563eb; 
+    background: var(--subject-mathematics); 
 }
 
 .subject-dot.physics { 
-    background: #dc2626; 
+    background: var(--subject-physics); 
 }
 
 .subject-dot.chemistry { 
-    background: #16a34a; 
+    background: var(--subject-chemistry); 
 }
 
 .subject-dot.biology { 
-    background: #059669; 
+    background: var(--subject-biology); 
 }
 
 .subject-dot.computer-science { 
-    background: #7c3aed; 
+    background: var(--subject-computer-science); 
 }
 
 .subject-dot.economics { 
-    background: #ea580c; 
+    background: var(--subject-economics); 
 }
 
 .subject-dot.psychology { 
-    background: #db2777; 
+    background: var(--subject-psychology); 
 }
 
 .subject-dot.history { 
-    background: #b45309; 
+    background: var(--subject-history); 
 }
 
 .subject-dot.literature { 
-    background: #4338ca; 
+    background: var(--subject-literature); 
 }
 
 .subject-dot.engineering { 
-    background: #374151; 
+    background: var(--subject-engineering); 
 }
 
 .subject-dot.medicine { 
-    background: #be123c; 
+    background: var(--subject-medicine); 
 }
 
 .subject-dot.law { 
-    background: #1f2937; 
+    background: var(--subject-law); 
 }
 
 /* Question Tags */

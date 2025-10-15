@@ -11,8 +11,8 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   /* subtle radial vignette to add depth */
   background-image:
-    radial-gradient(1200px 600px at 10% -10%, rgba(255,255,255,0.04), rgba(255,255,255,0) 60%),
-    radial-gradient(800px 500px at 110% 20%, rgba(80,160,255,0.06), rgba(0,0,0,0) 60%);
+    radial-gradient(1200px 600px at 10% -10%, var(--gradient-light-start), var(--gradient-light-end) 60%),
+    radial-gradient(800px 500px at 110% 20%, var(--gradient-blue), var(--gradient-light-end) 60%);
 }
 
 /* place hex background canvas behind content like profile page */
@@ -48,14 +48,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 26px rgba(0,0,0,0.18);
+  box-shadow: 0 8px 26px var(--shadow-md);
   backdrop-filter: blur(6px) saturate(120%);
 }
 
 .menu-btn:hover {
   background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 30px var(--shadow-md-3);
 }
 
 .menu-btn svg {
@@ -83,9 +83,9 @@
   z-index: 30;
   cursor: pointer;
   box-shadow: 
-    0 8px 32px rgba(0,0,0,0.25),
-    0 0 0 1px rgba(255,255,255,0.05) inset,
-    0 1px 0 rgba(255,255,255,0.1) inset;
+    0 8px 32px var(--shadow-lg),
+    0 0 0 1px var(--inset-light-sm) inset,
+    0 1px 0 var(--inset-light-md) inset;
   backdrop-filter: blur(12px) saturate(140%);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--color-muted-2);
@@ -99,9 +99,9 @@
   border-color: color-mix(in srgb, var(--color-input-border) 60%, var(--color-white) 40%);
   transform: translateY(-3px) scale(1.05);
   box-shadow: 
-    0 16px 40px rgba(0,0,0,0.35),
-    0 0 0 1px rgba(255,255,255,0.1) inset,
-    0 1px 0 rgba(255,255,255,0.15) inset;
+    0 16px 40px var(--shadow-xl-2),
+    0 0 0 1px var(--inset-light-md) inset,
+    0 1px 0 var(--inset-light-lg) inset;
   color: var(--color-white);
 }
 
@@ -120,7 +120,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: var(--overlay-dark);
   backdrop-filter: blur(8px);
   z-index: 40;
   opacity: 0;
@@ -146,7 +146,7 @@
   z-index: 50;
   transform: translateX(-100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 12px 0 36px rgba(0, 0, 0, 0.28);
+  box-shadow: 12px 0 36px var(--shadow-lg-2);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -234,7 +234,7 @@
   background: var(--color-input-bg);
   border-color: var(--color-border);
   transform: translateX(4px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12) inset;
+  box-shadow: 0 6px 20px var(--shadow-sm-inset) inset;
 }
 
 .nav-icon {
@@ -275,7 +275,7 @@
   border: 1px solid var(--color-border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+  box-shadow: 0 10px 28px var(--shadow-md);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -314,8 +314,8 @@
   overflow: hidden;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 
-    0 4px 12px rgba(0,0,0,0.15),
-    0 0 0 1px rgba(255,255,255,0.05) inset;
+    0 4px 12px var(--shadow-sm),
+    0 0 0 1px var(--inset-light-sm) inset;
   backdrop-filter: blur(8px) saturate(120%);
 }
 
@@ -328,7 +328,7 @@
   height: 100%;
   background: linear-gradient(90deg, 
     transparent, 
-    rgba(255,255,255,0.1), 
+    var(--inset-light-md), 
     transparent
   );
   transition: left 0.5s ease;
@@ -337,8 +337,8 @@
 .search-submit:hover {
   transform: translateY(-2px);
   box-shadow: 
-    0 8px 25px rgba(0,0,0,0.25),
-    0 0 0 1px rgba(255,255,255,0.1) inset;
+    0 8px 25px var(--shadow-lg),
+    0 0 0 1px var(--inset-light-md) inset;
   background: linear-gradient(135deg, 
     color-mix(in srgb, var(--color-input-focus) 95%, transparent),
     color-mix(in srgb, var(--color-white) 85%, var(--color-input-focus) 15%)
@@ -369,7 +369,7 @@
   border-radius: 16px;
   padding: 24px 20px;
   margin-bottom: 20px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 28px var(--shadow-md);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -397,7 +397,7 @@
   border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 12px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 28px var(--shadow-md);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -472,7 +472,7 @@
   background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
   color: var(--color-text);
   transform: translateX(4px);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12) inset;
+  box-shadow: 0 6px 18px var(--shadow-sm-inset) inset;
 }
 
 .rail-btn.active {
@@ -496,7 +496,7 @@
   border: 1px solid var(--color-border);
   border-radius: 16px 16px 0 0;
   padding: 20px 24px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 28px var(--shadow-md);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -506,7 +506,7 @@
   margin: 0;
   color: var(--color-text);
   letter-spacing: -0.3px;
-  text-shadow: 0 1px 0 rgba(0,0,0,0.15);
+  text-shadow: 0 1px 0 var(--shadow-sm);
 }
 
 .section-subtitle {
@@ -522,7 +522,7 @@
   border-radius: 0 0 16px 16px;
   border-top: none;
   overflow: hidden;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 34px var(--shadow-md-3);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -533,7 +533,7 @@
   border-radius: 0 0 16px 16px;
   border-top: none;
   padding: 16px;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 34px var(--shadow-md-3);
   backdrop-filter: blur(10px) saturate(120%);
 }
 
@@ -653,7 +653,7 @@
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   transition: all 0.2s ease;
   cursor: pointer;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 34px var(--shadow-md-3);
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(10px) saturate(120%);
@@ -666,7 +666,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--color-muted-2), var(--color-input-focus));
+  background: linear-gradient(90deg, var(--gradient-card-start), var(--color-input-focus));
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -674,15 +674,15 @@
 .feed .note-card:hover {
   transform: translateY(-6px) scale(1.02);
   box-shadow: 
-    0 20px 50px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.1);
+    0 20px 50px var(--shadow-xl-2),
+    0 0 0 1px var(--inset-light-md);
   background: color-mix(in srgb, var(--color-input-bg) 90%, transparent);
   border-color: var(--color-input-focus);
 }
 
 .note-card:hover::before {
   opacity: 1;
-  background: linear-gradient(90deg, #3B82F6, #1E40AF, #3B82F6);
+  background: linear-gradient(90deg, var(--gradient-card-start), var(--gradient-card-mid), var(--gradient-card-end));
 }
 
 .feed .note-card .card-title {

@@ -2,5 +2,5 @@
   display: block;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(180deg, #f6f6f6 0%, #e8e8e8 100%);
+  background: linear-gradient(180deg, var(--hex-bg-light) 0%, var(--hex-bg-dark) 100%);
 }
