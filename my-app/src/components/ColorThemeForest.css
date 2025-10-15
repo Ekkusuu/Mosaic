@@ -1,0 +1,120 @@
+/* Forest Theme - Natural greens and earthy tones inspired by deep woods */
+.theme-forest {
+    /* ========================================
+       BASE COLORS - Core UI Elements
+       ======================================== */
+    --color-bg: #f4f7f4; /* soft misty green-gray background */
+    --color-surface: #1a2820; /* deep forest green surface */
+    --color-border: #2d4034; /* moss green border */
+    --color-panel: #131a15; /* darker pine panel */
+    --color-input-bg: #243329; /* forest floor input */
+    --color-input-border: #3a5242; /* medium forest border */
+    --color-input-focus: #4ade80; /* bright leaf green focus */
+    --color-contrast: #f0fdf4; /* high contrast fresh mint */
+    --color-logo: #4ade80; /* logo color - bright spring green */
+    --logo-filter: invert(0.75) sepia(1) saturate(3) hue-rotate(90deg) brightness(1.2); /* logo SVG filter (green) */
+    
+    /* ========================================
+       TEXT COLORS
+       ======================================== */
+    --color-text: #86efac; /* light spring green text */
+    --color-placeholder: #5a7a64; /* muted sage */
+    --color-muted: #7fa88f; /* light sage green */
+    --color-muted-2: #4d6b57; /* darker sage */
+    
+    /* ========================================
+       SHADOWS - Box Shadow Effects
+       ======================================== */
+    --shadow-sm: rgba(26, 40, 32, 0.15);
+    --shadow-md: rgba(26, 40, 32, 0.2);
+    --shadow-md-2: rgba(26, 40, 32, 0.22);
+    --shadow-md-3: rgba(26, 40, 32, 0.25);
+    --shadow-lg: rgba(26, 40, 32, 0.28);
+    --shadow-lg-2: rgba(26, 40, 32, 0.3);
+    --shadow-xl: rgba(26, 40, 32, 0.35);
+    --shadow-xl-2: rgba(26, 40, 32, 0.4);
+    --shadow-2xl: rgba(26, 40, 32, 0.45);
+    
+    /* ========================================
+       OVERLAYS - Modal & Popup Backgrounds
+       ======================================== */
+    --overlay-dark: rgba(26, 40, 32, 0.65);
+    --overlay-dark-2: rgba(26, 40, 32, 0.75);
+    --overlay-dark-3: rgba(26, 40, 32, 0.85);
+    --overlay-dark-4: rgba(26, 40, 32, 0.9);
+    
+    /* ========================================
+       GRADIENTS & HIGHLIGHTS
+       ======================================== */
+    --gradient-light-start: rgba(134, 239, 172, 0.08);
+    --gradient-light-end: rgba(134, 239, 172, 0);
+    --gradient-blue: rgba(74, 222, 128, 0.1);
+    --inset-light-sm: rgba(134, 239, 172, 0.1);
+    --inset-light-md: rgba(134, 239, 172, 0.15);
+    --inset-light-lg: rgba(134, 239, 172, 0.2);
+    --color-overlay-line: rgba(74, 222, 128, 0.12);
+    
+    /* ========================================
+       STATUS COLORS - States & Indicators
+       ======================================== */
+    /* Success (bright green) */
+    --color-success: #22c55e;
+    --color-success-bg: rgba(34, 197, 94, 0.15);
+    --color-success-border: rgba(34, 197, 94, 0.4);
+    
+    /* Error (autumn red) */
+    --color-error: #dc2626;
+    --color-error-bg: rgba(220, 38, 38, 0.15);
+    --color-error-border: rgba(220, 38, 38, 0.4);
+    
+    /* Danger (deep red) */
+    --color-danger: #b91c1c;
+    --color-danger-bg: rgba(185, 28, 28, 0.15);
+    
+    /* Info (sky blue) */
+    --color-info: #0ea5e9;
+    --color-info-bg: rgba(14, 165, 233, 0.15);
+    --color-info-border: rgba(14, 165, 233, 0.4);
+    
+    /* Warning (amber) */
+    --color-warning: #f59e0b;
+    --color-warning-bg: rgba(245, 158, 11, 0.15);
+    --color-warning-border: rgba(245, 158, 11, 0.4);
+    
+    /* Gray (slate) */
+    --color-gray: #64748b;
+    --color-gray-bg: rgba(100, 116, 139, 0.15);
+    --color-gray-border: rgba(100, 116, 139, 0.4);
+    
+    /* ========================================
+       SUBJECT COLORS - Academic Subject Dots
+       ======================================== */
+    --subject-mathematics: #0ea5e9; /* sky blue */
+    --subject-physics: #dc2626; /* red */
+    --subject-chemistry: #22c55e; /* green */
+    --subject-biology: #10b981; /* emerald */
+    --subject-computer-science: #8b5cf6; /* violet */
+    --subject-economics: #f59e0b; /* amber */
+    --subject-psychology: #ec4899; /* pink */
+    --subject-history: #92400e; /* brown */
+    --subject-literature: #6366f1; /* indigo */
+    --subject-engineering: #475569; /* slate */
+    --subject-medicine: #be123c; /* rose */
+    --subject-law: #334155; /* dark slate */
+    
+    /* ========================================
+       GRADIENT ACCENTS - Card Gradients
+       ======================================== */
+    --gradient-card-start: #4ade80;
+    --gradient-card-mid: #22c55e;
+    --gradient-card-end: #16a34a;
+    
+    /* ========================================
+       HEXAGON BACKGROUND - Animated Canvas
+       ======================================== */
+    --hex-bg-light: #f4f7f4;
+    --hex-bg-dark: #e8f0ea;
+    --hex-color-min: #1a2820; /* hexagon fill color minimum (deep forest) */
+    --hex-color-max: #86efac; /* hexagon fill color maximum (bright spring green) */
+    --hex-stroke: rgba(26, 40, 32, 0.12); /* hexagon outline stroke color */
+}

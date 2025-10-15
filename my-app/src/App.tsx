@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './App.css';
 import './components/Color.css';
 import './components/ColorThemeHoneycomb.css';
+import './components/ColorThemeForest.css';
 import MainPage from './components/MainPage';
 import Auth from './components/Auth';
 import ProfilePage from './components/ProfilePage';

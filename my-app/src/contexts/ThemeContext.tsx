@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Theme = 'default' | 'honeycomb';
+type Theme = 'default' | 'honeycomb' | 'forest';
 
 interface ThemeContextType {
   theme: Theme;
@@ -19,7 +19,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     console.log('Theme changing to:', theme);
     console.log('Current classes before:', document.documentElement.className);
     // Remove all theme classes
-    document.documentElement.classList.remove('theme-default', 'theme-honeycomb');
+    document.documentElement.classList.remove('theme-default', 'theme-honeycomb', 'theme-forest');
     // Add current theme class
     document.documentElement.classList.add(`theme-${theme}`);
     console.log('Current classes after:', document.documentElement.className);
