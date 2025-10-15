@@ -234,7 +234,7 @@
   background: var(--color-input-bg);
   border-color: var(--color-border);
   transform: translateX(4px);
-  box-shadow: 0 6px 20px var(--shadow-sm-inset) inset;
+  box-shadow: 0 6px 20px var(--shadow-sm) inset;
 }
 
 .nav-icon {
@@ -472,7 +472,7 @@
   background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
   color: var(--color-text);
   transform: translateX(4px);
-  box-shadow: 0 6px 18px var(--shadow-sm-inset) inset;
+  box-shadow: 0 6px 18px var(--shadow-sm) inset;
 }
 
 .rail-btn.active {
