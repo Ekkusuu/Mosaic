@@ -12,7 +12,7 @@ the new columns & constraints. For fresh dev databases this is fine.
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
 
 
 def utcnow() -> datetime:
@@ -54,7 +54,8 @@ class UserRead(UserBase):
 class StudentProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     # Enforce one-to-one with User via unique constraint; race-safe uniqueness
-    user_id: int = Field(foreign_key="user.id", sa_column=Column(Integer, unique=True, index=True, nullable=False))
+    # Use SQLAlchemy ForeignKey inside sa_column instead of passing both foreign_key and sa_column
+    user_id: int = Field(sa_column=Column(Integer, ForeignKey("user.id"), unique=True, index=True, nullable=False))
     # Display name (can differ from account 'name')
     name: Optional[str] = Field(default=None, sa_column=Column(String(120), nullable=True))
     # Username: normalized, unique, used for mentions / future friendly URLs
@@ -107,6 +108,13 @@ class File(SQLModel, table=True):
     content_type: Optional[str] = None
     size: Optional[int] = None  # bytes
     checksum_sha256: Optional[str] = None
+    # New metadata for storage pipeline
+    is_compressed: bool = Field(default=False)
+    is_encrypted: bool = Field(default=False)
+    # nonce/tag stored as hex so it can be persisted easily
+    encryption_nonce_hex: Optional[str] = None
+    encryption_tag_hex: Optional[str] = None
+    encryption_key_id: Optional[str] = None
     visibility: str = Field(default="private")  # private|public|unlisted
     uploaded_at: Optional[str] = None  # ISO timestamp
     owner: Optional[User] = Relationship(back_populates="files")

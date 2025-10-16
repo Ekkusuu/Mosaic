@@ -87,20 +87,21 @@ def get_user_from_token(request: Request, session: Session) -> User:
     now = time.time()
     cache_entry = _TOKEN_CACHE.get(token)
 
-    # Fast path: use cached decode if within TTL
+    # Fast path: use cached decoded token info (primitive values only)
     if cache_entry and (now - cache_entry["cached_at"]) < TOKEN_CACHE_TTL_SECONDS:
         # Check expiration without re-decoding
         if now >= cache_entry["exp"]:
-            # Expired: purge and raise
             _TOKEN_CACHE.pop(token, None)
             raise HTTPException(status_code=401, detail="Token expired")
-        user_obj: User | None = cache_entry.get("user_obj")
-        if user_obj is None:
-            user_obj = session.exec(select(User).where(User.id == int(cache_entry["user_id"]))).first()
-            if not user_obj:
-                _TOKEN_CACHE.pop(token, None)
-                raise HTTPException(status_code=401, detail="User not found")
-            cache_entry["user_obj"] = user_obj  # store for subsequent use
+        # Always load fresh ORM object from the provided session to avoid DetachedInstanceError
+        user_id = cache_entry.get("user_id")
+        if user_id is None:
+            _TOKEN_CACHE.pop(token, None)
+            raise HTTPException(status_code=401, detail="Invalid token cache entry")
+        user_obj = session.exec(select(User).where(User.id == int(user_id))).first()
+        if not user_obj:
+            _TOKEN_CACHE.pop(token, None)
+            raise HTTPException(status_code=401, detail="User not found")
         return user_obj
 
     # Slow path: decode JWT anew
@@ -119,12 +120,11 @@ def get_user_from_token(request: Request, session: Session) -> User:
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # Store / refresh cache
+    # Store / refresh cache with primitive values only (do not store ORM instances)
     _TOKEN_CACHE[token] = {
         "user_id": int(user_id),
         "exp": int(exp),
         "cached_at": now,
-        "user_obj": user,
     }
     return user
 

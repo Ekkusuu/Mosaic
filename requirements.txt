@@ -10,3 +10,6 @@ huggingface_hub
 PyJWT
 cryptography
 zstandard
+pytest
+requests
+httpx
