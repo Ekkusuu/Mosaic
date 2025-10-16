@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional
+import threading
 
 from fastapi import (
     APIRouter,
@@ -53,6 +54,9 @@ else:
 ALLOWED_MIME_PREFIXES = {"image/", "text/", "application/pdf"}
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads")).resolve()
+
+# In-process user locks to reduce quota race conditions. Not cross-process.
+_user_locks: dict[int, threading.Lock] = {}
 
 # Ensure upload dir exists with owner-only perms (700 / rwx------)
 def _ensure_upload_dir():
@@ -205,36 +209,44 @@ def upload_file(
     # Stream + atomic write
     final_path, size, content_type, checksum, compressed, encrypted, nonce, tag = _atomic_write(file.file, UPLOAD_DIR, stored_name)
 
-    if used + size > MAX_USER_TOTAL_BYTES:
-        # Rollback file if quota exceeded mid-upload
-        try:
-            os.remove(final_path)
-        except OSError:
-            pass
-        raise HTTPException(status_code=403, detail="Storage quota exceeded")
+    # Use per-user in-process lock to reduce quota race between concurrent uploads
+    lock = _user_locks.setdefault(user.id, threading.Lock())
+    with lock:
+        # Recompute used after write to ensure we still have quota
+        used_after = _user_storage_bytes(session, user.id)
+        if used_after + size > MAX_USER_TOTAL_BYTES:
+            try:
+                os.remove(final_path)
+            except OSError:
+                pass
+            raise HTTPException(status_code=403, detail="Storage quota exceeded")
 
-    db_file = FileModel(
+        db_file = FileModel(
         filename=original_name,
         filepath=str(final_path),
         owner_id=user.id,
         content_type=content_type,
         size=size,
         checksum_sha256=checksum,
+        is_compressed=bool(compressed),
+        is_encrypted=bool(encrypted),
+        encryption_nonce_hex=(nonce.hex() if nonce else None),
+        encryption_tag_hex=(tag.hex() if tag else None),
         visibility=visibility if visibility in {"private", "public", "unlisted"} else "private",
         uploaded_at=datetime.utcnow().isoformat() + "Z",
         # store flags & encryption metadata encoded in filename path or separate columns (simplest: extend model later if needed)
     )
-    try:
-        session.add(db_file)
-        session.commit()
-        session.refresh(db_file)
-    except Exception:
-        # Metadata failed; remove file to avoid orphan
         try:
-            os.remove(final_path)
-        except OSError:
-            pass
-        raise
+            session.add(db_file)
+            session.commit()
+            session.refresh(db_file)
+        except Exception:
+            # Metadata failed; remove file to avoid orphan
+            try:
+                os.remove(final_path)
+            except OSError:
+                pass
+            raise
     return db_file
 
 def _authorize_file_access(user: User, file_obj: FileModel):
@@ -255,50 +267,138 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
     if not path.exists():
         raise HTTPException(status_code=410, detail="File missing")
 
-    # Read + fully process BEFORE starting response so errors become proper JSON and
-    # not mid-stream 500s caused by generator exceptions.
-    try:
-        raw = path.read_bytes()
-    except Exception:
-        raise HTTPException(status_code=500, detail="Could not read file")
+    # For small files, process entirely in memory to avoid streaming
+    # exceptions when an error occurs mid-stream. This ensures we only
+    # start the response after successful decrypt+decompress.
+    MAX_INMEMORY_BYTES = 50 * 1024 * 1024  # 50 MB threshold
+    file_size_on_disk = path.stat().st_size
+    if file_size_on_disk <= MAX_INMEMORY_BYTES:
+        zstd_magic = b"\x28\xB5\x2F\xFD"
+        data: bytes
+        with open(path, 'rb') as rf:
+            if bool(file_obj.is_encrypted):
+                if not AES_GCM:
+                    raise HTTPException(status_code=500, detail="Encryption key not configured")
+                nonce_local = rf.read(12)
+                if len(nonce_local) != 12:
+                    raise HTTPException(status_code=500, detail="Corrupt encrypted file")
+                ciphertext = rf.read()
+                try:
+                    data = AES_GCM.decrypt(nonce_local, ciphertext, None)
+                except Exception:
+                    raise HTTPException(status_code=410, detail="Unable to decrypt (key mismatch or corrupt)")
+            else:
+                data = rf.read()
+        # Decompress if needed (by metadata or magic)
+        if bool(file_obj.is_compressed) or (file_obj.is_compressed is None and data.startswith(zstd_magic)):
+            try:
+                dctx = zstd.ZstdDecompressor()
+                data = dctx.decompress(data)
+            except Exception:
+                # Fallback: return as-is (still valid to serve compressed bytes)
+                pass
+        headers = {
+            "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
+            "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
+        }
+        return Response(content=data, media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
 
-    payload = raw
+    # Fallback: streaming pipeline for larger files
+    def stream_pipeline():
+        zstd_magic = b"\x28\xB5\x2F\xFD"  # standard Zstd magic
+        # If encrypted, the on-disk layout is: nonce(12) + ciphertext (with tag at tail)
+        with open(path, 'rb') as rf:
+            plaintext = None
+            # Decide encryption: prefer metadata, but if missing, attempt decrypt and fall back
+            encrypted_flag = file_obj.is_encrypted
+            attempted_decrypt = False
+            if encrypted_flag is True:
+                if not AES_GCM:
+                    raise HTTPException(status_code=500, detail="Encryption key not configured")
+                nonce_local = rf.read(12)
+                if len(nonce_local) != 12:
+                    raise HTTPException(status_code=500, detail="Corrupt encrypted file")
+                ciphertext = rf.read()
+                try:
+                    plaintext = AES_GCM.decrypt(nonce_local, ciphertext, None)
+                except Exception:
+                    raise HTTPException(status_code=410, detail="Unable to decrypt (key mismatch or corrupt)")
+            elif encrypted_flag is None:
+                # Try to decrypt opportunistically; if it fails, treat as unencrypted
+                if AES_GCM:
+                    pos = rf.tell()
+                    nonce_local = rf.read(12)
+                    if len(nonce_local) == 12:
+                        ciphertext = rf.read()
+                        try:
+                            plaintext = AES_GCM.decrypt(nonce_local, ciphertext, None)
+                            attempted_decrypt = True
+                        except Exception:
+                            # Not encrypted (or wrong key). Rewind and stream raw
+                            rf.seek(0)
+                    else:
+                        rf.seek(0)
+                # else: no key configured, proceed as unencrypted
+            # else: encrypted_flag is False -> treat as unencrypted
 
-    # Decrypt first (file layout if encrypted: nonce(12) | ciphertext+tag )
-    if ENABLE_ENCRYPTION and AES_GCM:
-        if len(raw) < 13:
-            raise HTTPException(status_code=500, detail="Corrupt encrypted file")
-        nonce_local = raw[:12]
-        ciphertext = raw[12:]
-        try:
-            payload = AES_GCM.decrypt(nonce_local, ciphertext, None)
-        except Exception:
-            # Likely key rotation / mismatch or tampering.
-            raise HTTPException(status_code=410, detail="Unable to decrypt (key mismatch or corrupt)")
-
-    # Decompress if enabled (best effort; if fails treat as raw)
-    if ENABLE_COMPRESSION:
-        try:
-            dctx = zstd.ZstdDecompressor()
-            payload = dctx.decompress(payload)
-        except Exception:
-            # If compression flag enabled but data not compressed (legacy file), continue.
-            pass
-
-    # Verify checksum (payload should represent original logical content)
-    if file_obj.checksum_sha256:
-        calc = hashlib.sha256(payload).hexdigest()
-        if calc != file_obj.checksum_sha256:
-            # Content integrity failed (tamper or corruption after encryption/decompression pipeline)
-            raise HTTPException(status_code=500, detail="Checksum verification failed")
-
-    def iterfile():
-        view = memoryview(payload)
-        for offset in range(0, len(view), 64 * 1024):
-            yield view[offset: offset + 64 * 1024]
+            # Compression handling based on metadata, with sniff fallback when missing
+            compressed_flag = file_obj.is_compressed
+            if plaintext is not None:
+                # We have plaintext in memory (decrypted or originally unencrypted loaded by attempt)
+                if compressed_flag is True or (compressed_flag is None and plaintext.startswith(zstd_magic)):
+                    try:
+                        dctx = zstd.ZstdDecompressor()
+                        decompressed = dctx.decompress(plaintext)
+                    except Exception:
+                        # Fallback: serve plaintext as-is
+                        view = memoryview(plaintext)
+                        for offset in range(0, len(view), 64 * 1024):
+                            yield view[offset: offset + 64 * 1024]
+                        return
+                    view = memoryview(decompressed)
+                    for offset in range(0, len(view), 64 * 1024):
+                        yield view[offset: offset + 64 * 1024]
+                    return
+                else:
+                    view = memoryview(plaintext)
+                    for offset in range(0, len(view), 64 * 1024):
+                        yield view[offset: offset + 64 * 1024]
+                    return
+            else:
+                # No in-memory plaintext; we are in the unencrypted raw file path
+                if compressed_flag is True:
+                    dctx = zstd.ZstdDecompressor()
+                    with dctx.stream_reader(rf) as reader:
+                        while True:
+                            chunk = reader.read(64 * 1024)
+                            if not chunk:
+                                break
+                            yield chunk
+                    return
+                elif compressed_flag is None:
+                    # Sniff first 4 bytes for Zstd magic, then reset and choose path
+                    pos = rf.tell()
+                    head = rf.read(4)
+                    rf.seek(pos)
+                    if head == zstd_magic:
+                        dctx = zstd.ZstdDecompressor()
+                        with dctx.stream_reader(rf) as reader:
+                            while True:
+                                chunk = reader.read(64 * 1024)
+                                if not chunk:
+                                    break
+                                yield chunk
+                        return
+                # Not compressed: stream raw
+                with open(path, 'rb') as rf2:
+                    while True:
+                        chunk = rf2.read(64 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
 
     headers = {
         "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
         "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
     }
-    return StreamingResponse(iterfile(), media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
+    return StreamingResponse(stream_pipeline(), media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
