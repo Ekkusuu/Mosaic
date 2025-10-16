@@ -1,18 +1,121 @@
 /* Global color variables for the app. Import this file where colors are needed. */
-:root {
-    /* General purpose color tokens (app-wide). Use these across components. */
-    --color-bg: #fafafa; /* page background */
-    --color-surface: #1a1a1a; /* surface / modal background */
-    --color-border: #2a2a2a; /* generic border */
-    --color-panel: #0a0a0a; /* darker panel used for autofill */
-    --color-input-bg: #2B2B2B; /* input background */
-    --color-input-border: #4F4F4F; /* input border */
-    --color-input-focus: #3a3a3a; /* input focus border */
-    --color-text: #e0e0e0; /* primary text / labels */
-    --color-placeholder: #4a4a4a; /* placeholder text */
-    --color-muted: #666666; /* muted text */
-    --color-muted-2: #999999; /* secondary muted */
-    --color-btn-border: #3a3a3a; /* button border */
-    --color-overlay-line: rgba(255,255,255,0.03); /* overlay lines */
-    --color-white: #ffffff;
+/* Default Theme - Dark Mode */
+.theme-default {
+    /* ========================================
+       BASE COLORS - Core UI Elements
+       ======================================== */
+    --color-bg: #fafafa; /* main page background (light mode) */
+    --color-surface: #1a1a1a; /* modals, cards, panels background */
+    --color-border: #2a2a2a; /* default borders throughout app */
+    --color-panel: #0a0a0a; /* darker panels (autofill dropdown, deep backgrounds) */
+    --color-input-bg: #2B2B2B; /* text inputs, textareas background */
+    --color-input-border: #4F4F4F; /* input borders (normal state) */
+    --color-input-focus: #3a3a3a; /* input borders (focused), also button borders and accents */
+    --color-contrast: #ffffff; /* high contrast color for text/icons on dark backgrounds */
+    --color-logo: #ffffff; /* logo color */
+    --logo-filter: invert(1) brightness(2) saturate(0); /* logo SVG filter (white) */
+    
+    /* ========================================
+       TEXT COLORS
+       ======================================== */
+    --color-text: #e0e0e0; /* primary text, headings, labels */
+    --color-placeholder: #4a4a4a; /* input placeholders, empty state hints */
+    --color-muted: #666666; /* secondary text, metadata, timestamps */
+    --color-muted-2: #999999; /* tertiary text, less important info, icon colors */
+    
+    /* ========================================
+       SHADOWS - Box Shadow Effects
+       ======================================== */
+    --shadow-sm: rgba(0, 0, 0, 0.12); /* light shadows: small cards, dropdowns, subtle depth */
+    --shadow-md: rgba(0, 0, 0, 0.18); /* medium shadows: buttons, search bars, menu items */
+    --shadow-md-2: rgba(0, 0, 0, 0.2); /* medium shadow variant: active nav items, settings buttons */
+    --shadow-md-3: rgba(0, 0, 0, 0.22); /* medium shadow variant 2: hover states, feed containers */
+    --shadow-lg: rgba(0, 0, 0, 0.25); /* large shadows: elevated cards, hover effects */
+    --shadow-lg-2: rgba(0, 0, 0, 0.28); /* large shadow variant: sidebar, profile cards */
+    --shadow-xl: rgba(0, 0, 0, 0.3); /* extra large shadows: popups, comment cards hover */
+    --shadow-xl-2: rgba(0, 0, 0, 0.35); /* extra large shadow variant: raised cards, note hover */
+    --shadow-2xl: rgba(0, 0, 0, 0.4); /* largest shadows: main modals, major overlays */
+    
+    /* ========================================
+       OVERLAYS - Modal & Popup Backgrounds
+       ======================================== */
+    --overlay-dark: rgba(0, 0, 0, 0.6); /* light overlay: main page overlay behind sidebar */
+    --overlay-dark-2: rgba(0, 0, 0, 0.7); /* medium overlay: settings, notes, questions, comments popups */
+    --overlay-dark-3: rgba(0, 0, 0, 0.8); /* dark overlay: note editor, email verification */
+    --overlay-dark-4: rgba(0, 0, 0, 0.85); /* darkest overlay: note viewer full screen */
+    
+    /* ========================================
+       GRADIENTS & HIGHLIGHTS
+       ======================================== */
+    --gradient-light-start: rgba(255, 255, 255, 0.04); /* page background gradient start */
+    --gradient-light-end: rgba(255, 255, 255, 0); /* page background gradient end (transparent) */
+    --gradient-blue: rgba(80, 160, 255, 0.06); /* blue accent gradient for page backgrounds */
+    --inset-light-sm: rgba(255, 255, 255, 0.05); /* subtle inset highlight: button borders, card edges */
+    --inset-light-md: rgba(255, 255, 255, 0.1); /* medium inset highlight: hover states, glossy effects */
+    --inset-light-lg: rgba(255, 255, 255, 0.15); /* strong inset highlight: active states, focus rings */
+    --color-overlay-line: rgba(255, 255, 255, 0.03); /* decorative overlay lines, hexagon patterns */
+    
+    /* ========================================
+       STATUS COLORS - States & Indicators
+       ======================================== */
+    /* Success (green) - answered questions, public visibility, completed states */
+    --color-success: #22c55e; /* success text & icons */
+    --color-success-bg: rgba(34, 197, 94, 0.1); /* success background (10% opacity) */
+    --color-success-border: rgba(34, 197, 94, 0.3); /* success borders (30% opacity) */
+    
+    /* Error (red) - error states, validation failures */
+    --color-error: #ef4444; /* error text & icons */
+    --color-error-bg: rgba(239, 68, 68, 0.1); /* error background (10% opacity) */
+    --color-error-border: rgba(239, 68, 68, 0.3); /* error borders (30% opacity) */
+    
+    /* Danger (red-orange) - delete actions, destructive operations */
+    --color-danger: #ff6b6b; /* danger button text */
+    --color-danger-bg: rgba(255, 107, 107, 0.1); /* danger button hover background */
+    
+    /* Info (blue) - open questions, informational states */
+    --color-info: #3b82f6; /* info text & icons */
+    --color-info-bg: rgba(59, 130, 246, 0.1); /* info background (10% opacity) */
+    --color-info-border: rgba(59, 130, 246, 0.3); /* info borders (30% opacity) */
+    
+    /* Warning (orange) - private visibility, caution states */
+    --color-warning: #f97316; /* warning text & icons */
+    --color-warning-bg: rgba(249, 115, 22, 0.1); /* warning background (10% opacity) */
+    --color-warning-border: rgba(249, 115, 22, 0.3); /* warning borders (30% opacity) */
+    
+    /* Gray (neutral) - closed questions, disabled states */
+    --color-gray: #6b7280; /* gray text & icons */
+    --color-gray-bg: rgba(107, 114, 128, 0.1); /* gray background (10% opacity) */
+    --color-gray-border: rgba(107, 114, 128, 0.3); /* gray borders (30% opacity) */
+    
+    /* ========================================
+       SUBJECT COLORS - Academic Subject Dots
+       ======================================== */
+    --subject-mathematics: #2563eb; /* mathematics (blue) */
+    --subject-physics: #dc2626; /* physics (red) */
+    --subject-chemistry: #16a34a; /* chemistry (green) */
+    --subject-biology: #059669; /* biology (teal) */
+    --subject-computer-science: #7c3aed; /* computer science (purple) */
+    --subject-economics: #ea580c; /* economics (orange) */
+    --subject-psychology: #db2777; /* psychology (pink) */
+    --subject-history: #b45309; /* history (brown) */
+    --subject-literature: #4338ca; /* literature (indigo) */
+    --subject-engineering: #374151; /* engineering (gray) */
+    --subject-medicine: #be123c; /* medicine (rose) */
+    --subject-law: #1f2937; /* law (dark gray) */
+    
+    /* ========================================
+       GRADIENT ACCENTS - Card Gradients
+       ======================================== */
+    --gradient-card-start: #3B82F6; /* card hover gradient start (blue) */
+    --gradient-card-mid: #1E40AF; /* card hover gradient middle (dark blue) */
+    --gradient-card-end: #3B82F6; /* card hover gradient end (blue) */
+    
+    /* ========================================
+       HEXAGON BACKGROUND - Animated Canvas
+       ======================================== */
+    --hex-bg-light: #f6f6f6; /* hexagon background gradient light end */
+    --hex-bg-dark: #e8e8e8; /* hexagon background gradient dark end */
+    --hex-color-min: #000000; /* hexagon fill color minimum (darkest) */
+    --hex-color-max: #646464; /* hexagon fill color maximum (lightest) */
+    --hex-stroke: rgba(0, 0, 0, 0.12); /* hexagon outline stroke color */
 }

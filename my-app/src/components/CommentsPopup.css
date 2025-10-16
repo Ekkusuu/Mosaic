@@ -7,7 +7,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--overlay-dark-2);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -27,7 +27,7 @@
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px var(--shadow-2xl);
     animation: slideUp 0.3s ease-out;
     overflow: hidden;
 }
@@ -132,7 +132,7 @@
     background: var(--color-panel);
     border-color: var(--color-input-focus);
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 25px var(--shadow-xl);
 }
 
 /* Comment Card Header */
@@ -290,51 +290,51 @@
 }
 
 .subject-dot.mathematics { 
-    background: #2563eb; 
+    background: var(--subject-mathematics); 
 }
 
 .subject-dot.physics { 
-    background: #dc2626; 
+    background: var(--subject-physics); 
 }
 
 .subject-dot.chemistry { 
-    background: #16a34a; 
+    background: var(--subject-chemistry); 
 }
 
 .subject-dot.biology { 
-    background: #059669; 
+    background: var(--subject-biology); 
 }
 
 .subject-dot.computer-science { 
-    background: #7c3aed; 
+    background: var(--subject-computer-science); 
 }
 
 .subject-dot.economics { 
-    background: #ea580c; 
+    background: var(--subject-economics); 
 }
 
 .subject-dot.psychology { 
-    background: #db2777; 
+    background: var(--subject-psychology); 
 }
 
 .subject-dot.history { 
-    background: #b45309; 
+    background: var(--subject-history); 
 }
 
 .subject-dot.literature { 
-    background: #4338ca; 
+    background: var(--subject-literature); 
 }
 
 .subject-dot.engineering { 
-    background: #374151; 
+    background: var(--subject-engineering); 
 }
 
 .subject-dot.medicine { 
-    background: #be123c; 
+    background: var(--subject-medicine); 
 }
 
 .subject-dot.law { 
-    background: #1f2937; 
+    background: var(--subject-law); 
 }
 
 /* Responsive Design */

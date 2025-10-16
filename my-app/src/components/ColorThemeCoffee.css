@@ -1,0 +1,119 @@
+/* Coffee Theme - Warm browns and espresso tones inspired by coffee culture */
+.theme-coffee {
+    /* ========================================
+       BASE COLORS - Core UI Elements
+       ======================================== */
+    --color-bg: #f1f9f1; /* creamy latte background */
+    --color-surface: #2b1e15; /* deep espresso surface */
+    --color-border: #4a3528; /* medium roast border */
+    --color-panel: #1c130d; /* darker panel */
+    --color-input-bg: #3a2918; /* coffee brown input */
+    --color-input-border: #5d452f; /* caramel border */
+    --color-input-focus: #d4a574; /* warm caramel focus */
+    --color-contrast: #fffbf5; /* high contrast cream */
+   --color-logo: #b87333; /* logo color - rich caramel brown */
+    
+    /* ========================================
+       TEXT COLORS
+       ======================================== */
+    --color-text: #e8c9a0; /* light caramel text */
+    --color-placeholder: #8a6f56; /* muted mocha */
+    --color-muted: #a68968; /* light coffee brown */
+    --color-muted-2: #6e5742; /* darker mocha */
+    
+    /* ========================================
+       SHADOWS - Box Shadow Effects
+       ======================================== */
+    --shadow-sm: rgba(43, 30, 21, 0.15);
+    --shadow-md: rgba(43, 30, 21, 0.2);
+    --shadow-md-2: rgba(43, 30, 21, 0.22);
+    --shadow-md-3: rgba(43, 30, 21, 0.25);
+    --shadow-lg: rgba(43, 30, 21, 0.28);
+    --shadow-lg-2: rgba(43, 30, 21, 0.3);
+    --shadow-xl: rgba(43, 30, 21, 0.35);
+    --shadow-xl-2: rgba(43, 30, 21, 0.4);
+    --shadow-2xl: rgba(43, 30, 21, 0.45);
+    
+    /* ========================================
+       OVERLAYS - Modal & Popup Backgrounds
+       ======================================== */
+    --overlay-dark: rgba(43, 30, 21, 0.65);
+    --overlay-dark-2: rgba(43, 30, 21, 0.75);
+    --overlay-dark-3: rgba(43, 30, 21, 0.85);
+    --overlay-dark-4: rgba(43, 30, 21, 0.9);
+    
+    /* ========================================
+       GRADIENTS & HIGHLIGHTS
+       ======================================== */
+    --gradient-light-start: rgba(232, 201, 160, 0.08);
+    --gradient-light-end: rgba(232, 201, 160, 0);
+    --gradient-blue: rgba(212, 165, 116, 0.1);
+    --inset-light-sm: rgba(232, 201, 160, 0.1);
+    --inset-light-md: rgba(232, 201, 160, 0.15);
+    --inset-light-lg: rgba(232, 201, 160, 0.2);
+    --color-overlay-line: rgba(212, 165, 116, 0.12);
+    
+    /* ========================================
+       STATUS COLORS - States & Indicators
+       ======================================== */
+    /* Success (warm green) */
+    --color-success: #84cc16;
+    --color-success-bg: rgba(132, 204, 22, 0.15);
+    --color-success-border: rgba(132, 204, 22, 0.4);
+    
+    /* Error (warm red) */
+    --color-error: #ef4444;
+    --color-error-bg: rgba(239, 68, 68, 0.15);
+    --color-error-border: rgba(239, 68, 68, 0.4);
+    
+    /* Danger (burnt orange) */
+    --color-danger: #dc2626;
+    --color-danger-bg: rgba(220, 38, 38, 0.15);
+    
+    /* Info (warm blue) */
+    --color-info: #3b82f6;
+    --color-info-bg: rgba(59, 130, 246, 0.15);
+    --color-info-border: rgba(59, 130, 246, 0.4);
+    
+    /* Warning (amber) */
+    --color-warning: #f59e0b;
+    --color-warning-bg: rgba(245, 158, 11, 0.15);
+    --color-warning-border: rgba(245, 158, 11, 0.4);
+    
+    /* Gray (warm stone) */
+    --color-gray: #78716c;
+    --color-gray-bg: rgba(120, 113, 108, 0.15);
+    --color-gray-border: rgba(120, 113, 108, 0.4);
+    
+    /* ========================================
+       SUBJECT COLORS - Academic Subject Dots
+       ======================================== */
+    --subject-mathematics: #3b82f6; /* blue */
+    --subject-physics: #ef4444; /* red */
+    --subject-chemistry: #84cc16; /* lime */
+    --subject-biology: #10b981; /* emerald */
+    --subject-computer-science: #8b5cf6; /* violet */
+    --subject-economics: #f59e0b; /* amber */
+    --subject-psychology: #ec4899; /* pink */
+    --subject-history: #92400e; /* brown */
+    --subject-literature: #6366f1; /* indigo */
+    --subject-engineering: #57534e; /* stone */
+    --subject-medicine: #be123c; /* rose */
+    --subject-law: #44403c; /* stone */
+    
+    /* ========================================
+       GRADIENT ACCENTS - Card Gradients
+       ======================================== */
+    --gradient-card-start: #d4a574;
+    --gradient-card-mid: #c2956a;
+    --gradient-card-end: #a67c52;
+    
+    /* ========================================
+       HEXAGON BACKGROUND - Animated Canvas
+       ======================================== */
+    --hex-bg-light: #f9f6f1;
+    --hex-bg-dark: #f0e9de;
+    --hex-color-min: #2b1e15; /* hexagon fill color minimum (deep espresso) */
+    --hex-color-max: #e8c9a0; /* hexagon fill color maximum (light caramel) */
+   --hex-stroke: rgba(184, 115, 51, 0.22); /* hexagon outline stroke color - caramel brown, more pronounced */
+}

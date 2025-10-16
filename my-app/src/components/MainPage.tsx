@@ -5,6 +5,7 @@ import Logo from './Logo';
 import HexagonBackground from './HexagonBackground';
 import AIChat from './AIChat';
 import NoteViewer from './NoteViewer';
+import SettingsPopup from './SettingsPopup';
 
 // Navbar Component
 interface NavItem {
@@ -17,9 +18,10 @@ interface NavItem {
 interface NavbarProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenSettings: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose }) => {
+const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onOpenSettings }) => {
   const navItems: NavItem[] = [
     {
       id: 'home',
@@ -56,17 +58,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose }) => {
       ),
       href: '#contact'
     },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      ),
-      href: '#settings'
-    },
+
   ];
 
   return (
@@ -105,6 +97,23 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose }) => {
                 </a>
               </li>
             ))}
+            <li>
+              <button 
+                className="nav-item nav-item-button" 
+                onClick={() => { 
+                  onClose(); 
+                  onOpenSettings(); 
+                }}
+              >
+                <span className="nav-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                </span>
+                <span className="nav-label">Settings</span>
+              </button>
+            </li>
           </ul>
         </nav>
 
@@ -123,6 +132,7 @@ const MainPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNote, setSelectedNote] = useState<any | null>(null);
   const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const openNav = () => setIsNavOpen(true);
   const closeNav = () => setIsNavOpen(false);
@@ -226,7 +236,7 @@ const MainPage: React.FC = () => {
       </button>
 
       {/* Navbar */}
-      <Navbar isOpen={isNavOpen} onClose={closeNav} />
+      <Navbar isOpen={isNavOpen} onClose={closeNav} onOpenSettings={() => setIsSettingsOpen(true)} />
 
       {/* Page Content */}
       <div className="main-foreground">
@@ -379,6 +389,12 @@ const MainPage: React.FC = () => {
         isOpen={isNoteViewerOpen}
         onClose={closeNoteViewer}
         note={selectedNote}
+      />
+
+      {/* Settings Popup */}
+      <SettingsPopup
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </div>
   );
