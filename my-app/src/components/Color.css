@@ -13,7 +13,6 @@
     --color-input-focus: #3a3a3a; /* input borders (focused), also button borders and accents */
     --color-contrast: #ffffff; /* high contrast color for text/icons on dark backgrounds */
     --color-logo: #ffffff; /* logo color */
-    --logo-filter: invert(1) brightness(2) saturate(0); /* logo SVG filter (white) */
     
     /* ========================================
        TEXT COLORS

@@ -12,8 +12,6 @@
     --color-input-focus: #ea9d3e; /* bright golden focus */
     --color-contrast: #fffdf7; /* high contrast warm white */
     --color-logo: #ea9d3e; /* logo color - bright golden orange */
-    --logo-filter: invert(0.65) sepia(1) saturate(5) hue-rotate(10deg) brightness(1.1); /* logo SVG filter (golden) */
-    
     /* ========================================
        TEXT COLORS
        ======================================== */

@@ -156,11 +156,11 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
                       value={theme}
                       onChange={(e) => setTheme(e.target.value as 'default' | 'honeycomb' | 'forest' | 'coffee' | 'sakura')}
                     >
-                      <option value="default">Default (Dark)</option>
-                      <option value="honeycomb">Honeycomb (Golden)</option>
-                      <option value="forest">Forest (Green)</option>
-                      <option value="coffee">Coffee (Warm Browns)</option>
-                      <option value="sakura">Sakura (Cherry Blossom)</option>
+                      <option value="default">Default</option>
+                      <option value="honeycomb">Honeycomb</option>
+                      <option value="forest">Forest</option>
+                      <option value="coffee">Coffee</option>
+                      <option value="sakura">Sakura</option>
                     </select>
                   </div>
 

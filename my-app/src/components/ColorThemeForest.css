@@ -12,7 +12,6 @@
     --color-input-focus: #4ade80; /* bright leaf green focus */
     --color-contrast: #f0fdf4; /* high contrast fresh mint */
     --color-logo: #4ade80; /* logo color - bright spring green */
-    --logo-filter: invert(0.75) sepia(1) saturate(3) hue-rotate(90deg) brightness(1.2); /* logo SVG filter (green) */
     
     /* ========================================
        TEXT COLORS
