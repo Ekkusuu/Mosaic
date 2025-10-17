@@ -132,7 +132,7 @@
     margin-top: 12px;
     height: 44px;
     background: transparent;
-    border: 1px solid var(--color-btn-border);
+    border: 1px solid var(--color-input-focus);
     border-radius: 8px;
     color: var(--color-contrast);
     font-size: 15px;
