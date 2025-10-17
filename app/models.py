@@ -69,6 +69,11 @@ class EmailResendRequest(SQLModel):
     email: str
 
 
+class PasswordChangeRequest(SQLModel):
+    current_password: str
+    new_password: str
+
+
 class MessageResponse(SQLModel):
     message: str
 
