@@ -247,8 +247,6 @@
     width: 140px;
     height: auto;
     object-fit: contain;
-    /* If importing an SVG as an <img>, use filter to make it white on dark background */
-    filter: invert(1) brightness(2) saturate(0);
 }
 
 input:-webkit-autofill,
