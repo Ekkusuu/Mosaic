@@ -58,6 +58,12 @@ const ProfilePage: React.FC = () => {
         }
     };
 
+    const handleOpenEdit = () => {
+        // initialize edit form with current profile data then open modal
+        setEditData(profileData);
+        setIsEditing(true);
+    };
+
     const handleSave = () => {
         setProfileData(editData);
         setIsEditing(false);
@@ -286,8 +292,6 @@ const ProfilePage: React.FC = () => {
                 <div className="profile-layout">
                     {/* Left sidebar */}
                     <div className="profile-sidebar">
-                        {!isEditing ? (
-                            <>
                                 <div className="profile-avatar">
                                     {profileData.avatarUrl ? (
                                         <img src={profileData.avatarUrl} alt={profileData.name} />
@@ -326,7 +330,7 @@ const ProfilePage: React.FC = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => setIsEditing(true)}
+                                    onClick={handleOpenEdit}
                                     className="edit-profile-btn"
                                 >
                                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -337,144 +341,6 @@ const ProfilePage: React.FC = () => {
                                     </svg>
                                     Edit profile
                                 </button>
-                            </>
-                        ) : (
-                            <div className="edit-modal-overlay" onClick={handleCancel}>
-                                <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
-                                    <div className="form-header">
-                                        <div className="form-title">Edit profile</div>
-                                        <div className="form-subtitle">Highlight what helps others discover your notes</div>
-                                        <button onClick={handleCancel} className="modal-close-btn">
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-
-                                <div className="avatar-upload">
-                                    <label className="avatar-preview-wrapper">
-                                        <div className="avatar-preview">
-                                            {editData.avatarUrl ? (
-                                                <img src={editData.avatarUrl} alt="Profile" />
-                                            ) : (
-                                                <span>{getInitials(editData.name)}</span>
-                                            )}
-                                        </div>
-                                        <div className="avatar-edit-icon">
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z"
-                                                      fill="currentColor"/>
-                                                <path d="m5.738 9.262l3 3"
-                                                      stroke="currentColor" strokeWidth="0.75"/>
-                                            </svg>
-                                        </div>
-                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="avatar-file-input" />
-                                    </label>
-                                </div>
-
-                                <div className="form-grid">
-                                    <div className="form-group">
-                                        <label htmlFor="name">Name</label>
-                                        <div className="input-wrapper">
-                                            <input
-                                                type="text"
-                                                id="name"
-                                                name="name"
-                                                value={editData.name}
-                                                onChange={handleInputChange}
-                                                placeholder="Your full name"
-                                            />
-                                            <button
-                                                type="button"
-                                                className="clear-btn"
-                                                onClick={() => clearField('name')}
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                                    <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label htmlFor="username">Username</label>
-                                        <div className="input-wrapper">
-                                            <input
-                                                type="text"
-                                                id="username"
-                                                name="username"
-                                                value={editData.username}
-                                                onChange={handleInputChange}
-                                                placeholder="Unique handle"
-                                            />
-                                            <button
-                                                type="button"
-                                                className="clear-btn"
-                                                onClick={() => clearField('username')}
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                                    <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label htmlFor="year">Year</label>
-                                        <div className="input-wrapper">
-                                            <input
-                                                type="text"
-                                                id="year"
-                                                name="year"
-                                                value={editData.year}
-                                                onChange={handleInputChange}
-                                                placeholder="e.g., 2nd year"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label htmlFor="speciality">Speciality</label>
-                                        <div className="input-wrapper">
-                                            <input
-                                                type="text"
-                                                id="speciality"
-                                                name="speciality"
-                                                value={editData.speciality}
-                                                onChange={handleInputChange}
-                                                placeholder="Your field of study"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group full">
-                                        <label htmlFor="bio">Bio</label>
-                                        <div className="input-wrapper">
-                                            <textarea
-                                                id="bio"
-                                                name="bio"
-                                                value={editData.bio}
-                                                onChange={handleInputChange}
-                                                placeholder="A sentence or two about you"
-                                            />
-                                        </div>
-                                        <div className="helper-text">Keep it short and sweet.</div>
-                                    </div>
-
-                                    {null}
-                                </div>
-
-                                <div className="form-actions">
-                                    <button onClick={handleSave} className="save-btn">
-                                        Save
-                                    </button>
-                                    <button onClick={handleCancel} className="cancel-btn">
-                                        Cancel
-                                    </button>
-                                </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Main content */}
@@ -823,6 +689,141 @@ const ProfilePage: React.FC = () => {
                 onClose={closeNoteViewer}
                 note={selectedNote}
             />
+
+            {/* Edit Profile Modal */}
+            {isEditing && (
+                <div className="edit-modal-overlay" onClick={handleCancel}>
+                    <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="form-header">
+                            <div className="form-title">Edit profile</div>
+                            <div className="form-subtitle">Highlight what helps others discover your notes</div>
+                            <button onClick={handleCancel} className="modal-close-btn">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                    <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="avatar-upload">
+                            <label className="avatar-preview-wrapper">
+                                <div className="avatar-preview">
+                                    {editData.avatarUrl ? (
+                                        <img src={editData.avatarUrl} alt="Profile" />
+                                    ) : (
+                                        <span>{getInitials(editData.name)}</span>
+                                    )}
+                                </div>
+                                <div className="avatar-edit-icon">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Z" fill="currentColor"/>
+                                        <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
+                                    </svg>
+                                </div>
+                                <input type="file" accept="image/*" onChange={handleImageUpload} className="avatar-file-input" />
+                            </label>
+                        </div>
+
+                        <div className="form-grid">
+                            <div className="form-group">
+                                <label htmlFor="name">Name</label>
+                                <div className="input-wrapper">
+                                    <input
+                                        type="text"
+                                        id="name"
+                                        name="name"
+                                        value={editData.name}
+                                        onChange={handleInputChange}
+                                        placeholder="Your full name"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="clear-btn"
+                                        onClick={() => clearField('name')}
+                                    >
+                                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                            <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="username">Username</label>
+                                <div className="input-wrapper">
+                                    <input
+                                        type="text"
+                                        id="username"
+                                        name="username"
+                                        value={editData.username}
+                                        onChange={handleInputChange}
+                                        placeholder="Unique handle"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="clear-btn"
+                                        onClick={() => clearField('username')}
+                                    >
+                                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                            <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="year">Year</label>
+                                <div className="input-wrapper">
+                                    <input
+                                        type="text"
+                                        id="year"
+                                        name="year"
+                                        value={editData.year}
+                                        onChange={handleInputChange}
+                                        placeholder="e.g., 2nd year"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="speciality">Speciality</label>
+                                <div className="input-wrapper">
+                                    <input
+                                        type="text"
+                                        id="speciality"
+                                        name="speciality"
+                                        value={editData.speciality}
+                                        onChange={handleInputChange}
+                                        placeholder="Your field of study"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group full">
+                                <label htmlFor="bio">Bio</label>
+                                <div className="input-wrapper">
+                                    <textarea
+                                        id="bio"
+                                        name="bio"
+                                        value={editData.bio}
+                                        onChange={handleInputChange}
+                                        placeholder="A sentence or two about you"
+                                    />
+                                </div>
+                                <div className="helper-text">Keep it short and sweet.</div>
+                            </div>
+                        </div>
+
+                        <div className="form-actions">
+                            <button onClick={handleSave} className="save-btn">
+                                Save
+                            </button>
+                            <button onClick={handleCancel} className="cancel-btn">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
