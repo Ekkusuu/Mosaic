@@ -9,6 +9,7 @@ from app.models import (
     UserLogin,
     EmailVerificationRequest,
     EmailResendRequest,
+    PasswordChangeRequest,
     MessageResponse,
     EmailVerification,
 )
@@ -257,6 +258,30 @@ def resend_verification(
     background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
 
     return MessageResponse(message="Verification code resent")
+
+
+@router.post("/change-password", response_model=MessageResponse)
+def change_password(
+    payload: PasswordChangeRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> MessageResponse:
+    user = get_user_from_token(request, session)
+    
+    if not verify_password(payload.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    try:
+        validate_password(payload.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    user.hashed_password = hash_password(payload.new_password)
+    session.add(user)
+    session.commit()
+    
+    return MessageResponse(message="Password changed successfully")
+
 
 @router.post("/logout")
 def logout_user(response: Response):

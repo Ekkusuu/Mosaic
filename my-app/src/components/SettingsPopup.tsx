@@ -11,12 +11,71 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
   const [activeSection, setActiveSection] = useState<'account' | 'preferences' | 'privacy' | 'notifications'>('account');
   const { theme, setTheme } = useTheme();
   
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  
   // Mock settings state
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
   const [publicProfile, setPublicProfile] = useState(true);
   const [showEmail, setShowEmail] = useState(false);
   const [language, setLanguage] = useState('en');
+
+  const handlePasswordChange = async () => {
+    setPasswordMessage(null);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'All password fields are required' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordMessage({ type: 'error', text: 'Password must be at least 8 characters long' });
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const response = await fetch('http://localhost:8000/users/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to change password');
+      }
+
+      setPasswordMessage({ type: 'success', text: 'Password changed successfully' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      setPasswordMessage({ 
+        type: 'error', 
+        text: error instanceof Error ? error.message : 'Failed to change password' 
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -103,6 +162,13 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
 
                 <div className="settings-group">
                   <h4 className="settings-subsection-title">Change Password</h4>
+                  
+                  {passwordMessage && (
+                    <div className={`settings-message settings-message-${passwordMessage.type}`}>
+                      {passwordMessage.text}
+                    </div>
+                  )}
+                  
                   <div className="settings-item">
                     <label className="settings-label" htmlFor="current-password">Current Password</label>
                     <input
@@ -110,6 +176,8 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
                       type="password"
                       className="settings-input"
                       placeholder="••••••••"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
                     />
                   </div>
 
@@ -120,6 +188,8 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
                       type="password"
                       className="settings-input"
                       placeholder="••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
                     />
                   </div>
 
@@ -130,11 +200,17 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
                       type="password"
                       className="settings-input"
                       placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                     />
                   </div>
 
-                  <button className="settings-btn settings-btn-primary">
-                    Update Password
+                  <button 
+                    className="settings-btn settings-btn-primary"
+                    onClick={handlePasswordChange}
+                    disabled={isChangingPassword}
+                  >
+                    {isChangingPassword ? 'Updating...' : 'Update Password'}
                   </button>
                 </div>
               </div>
