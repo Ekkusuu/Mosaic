@@ -119,52 +119,75 @@ def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, 
     sha256 = hashlib.sha256()
     size = 0
     first_chunk = b""
-    compressor: Optional[zstd.ZstdCompressor] = None
     compressed = False
     encrypted = False
     nonce: Optional[bytes] = None
     tag: Optional[bytes] = None
+
     try:
         with os.fdopen(tmp_fd, "wb") as tmp_file:
-            if ENABLE_COMPRESSION:
-                compressor = zstd.ZstdCompressor(level=COMPRESSION_LEVEL)
-                cstream = compressor.stream_writer(tmp_file)
-            else:
-                cstream = tmp_file  # type: ignore
-            # Read in chunks
+            # We'll decide compression after sniffing the first chunk
+            cstream = None
+            should_compress = False
+
             while True:
                 chunk = stream.read(64 * 1024)
                 if not chunk:
                     break
-                if not first_chunk:
+
+                if size == 0:
+                    # Capture initial bytes for content-type sniffing
                     first_chunk = chunk[:512]
+                    sniff_type = _sniff_magic(first_chunk)
+                    # Skip compression for already-compressed image formats
+                    if ENABLE_COMPRESSION and not sniff_type.startswith("image/"):
+                        should_compress = True
+                    # Initialize the output sink based on decision
+                    if should_compress:
+                        compressor = zstd.ZstdCompressor(level=COMPRESSION_LEVEL)
+                        cstream = compressor.stream_writer(tmp_file)
+                    else:
+                        cstream = tmp_file
+
                 size += len(chunk)
                 if size > MAX_SINGLE_UPLOAD_BYTES:
                     raise HTTPException(status_code=413, detail="File too large")
                 sha256.update(chunk)
-                cstream.write(chunk)
-            if ENABLE_COMPRESSION:
-                cstream.flush(zstd.FLUSH_FRAME)
+                # cstream is guaranteed to be set after first chunk
+                cstream.write(chunk)  # type: ignore[attr-defined]
+
+            # Finalize compressor if used
+            if should_compress and cstream is not None:
+                try:
+                    # Ensure frame is fully flushed and closed
+                    cstream.flush(zstd.FLUSH_FRAME)  # type: ignore[attr-defined]
+                finally:
+                    try:
+                        cstream.close()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 compressed = True
-            # At this point file on disk has raw or compressed bytes. If encryption enabled, re-open and encrypt in-place to new temp.
+
+        # At this point file on disk has raw or compressed bytes. If encryption enabled, encrypt in-place.
         if ENABLE_ENCRYPTION and AES_GCM:
-            # Read back original temp contents
             with open(tmp_path, 'rb') as rf:
                 plaintext = rf.read()
             nonce = secrets.token_bytes(12)
             ciphertext = AES_GCM.encrypt(nonce, plaintext, None)
-            # Layout: nonce | ciphertext
-            # (AESGCM in cryptography appends tag automatically to ciphertext tail)
+            # Layout: nonce | ciphertext (AESGCM appends tag to ciphertext)
             with open(tmp_path, 'wb') as wf:
                 wf.write(nonce + ciphertext)
             encrypted = True
-            # Extract tag (last 16 bytes of ciphertext)
             tag = ciphertext[-16:]
+
+        # fsync to disk before atomic move
         with open(tmp_path, 'ab') as wf:
             os.fsync(wf.fileno())
-        # Sniff type from first chunk
+
+        # Sniff type from first chunk for response metadata and validation
         content_type = _sniff_magic(first_chunk)
         _validate_content_type(content_type)
+
         final_path = dest_dir / stored_name
         os.replace(tmp_path, final_path)  # atomic move
         os.chmod(final_path, stat.S_IRUSR | stat.S_IWUSR)  # 600
@@ -293,7 +316,9 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
         if bool(file_obj.is_compressed) or (file_obj.is_compressed is None and data.startswith(zstd_magic)):
             try:
                 dctx = zstd.ZstdDecompressor()
-                data = dctx.decompress(data)
+                # Provide an explicit max_output_size to handle frames without known content size
+                max_out = file_obj.size or (100 * 1024 * 1024)
+                data = dctx.decompress(data, max_output_size=int(max_out))
             except Exception:
                 # Fallback: return as-is (still valid to serve compressed bytes)
                 pass

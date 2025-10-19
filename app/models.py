@@ -29,6 +29,8 @@ class User(UserBase, table=True):
     # Unique + indexed email column (race-safe uniqueness)
     email: str = Field(sa_column=Column(String(255), unique=True, index=True, nullable=False))  # override parent
     hashed_password: str
+    # Email verification flag (column ensured at startup via DDL in app.main)
+    is_verified: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default="0"))
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     last_login_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     failed_login_attempts: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))

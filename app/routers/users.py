@@ -2,7 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Response, Request, Backgr
 from sqlmodel import Session, select
 from app.security import hash_password, verify_password
 from app.db import get_session
-from app.models import User, UserCreate, UserRead, UserLogin, StudentProfile
+from app.models import (
+    User,
+    UserCreate,
+    UserRead,
+    UserLogin,
+    StudentProfile,
+    EmailVerificationRequest,
+    EmailResendRequest,
+    MessageResponse,
+    EmailVerification,
+)
 from app.validators import validate_username, validate_password, validate_email_domain
 from datetime import datetime, timedelta, timezone
 import jwt
@@ -12,6 +22,7 @@ import string
 from dotenv import load_dotenv
 import time
 from typing import Any, Dict
+from app.email_utils import send_verification_email
 
 load_dotenv()
 SECRET_KEY = os.getenv("JWT_SECRET", "").strip()
@@ -37,6 +48,10 @@ TOKEN_CACHE_TTL_SECONDS = int(os.getenv("JWT_CACHE_TTL_SECONDS", "600"))  # defa
 # token -> {"user_id": int, "exp": int(epoch seconds), "cached_at": float, "user_obj": User | None}
 _TOKEN_CACHE: Dict[str, Dict[str, Any]] = {}
 
+# Email verification configuration
+# Length of numeric verification code and expiration time (in minutes)
+VERIFICATION_CODE_LENGTH = int(os.getenv("VERIFICATION_CODE_LENGTH", "6"))
+EMAIL_CODE_EXPIRATION_MINUTES = int(os.getenv("EMAIL_CODE_EXPIRATION_MINUTES", "15"))
 
 
 def create_access_token(*, data: dict, expires_delta: timedelta | None = None) -> str:
