@@ -7,6 +7,7 @@ from app.models import (
     UserCreate,
     UserRead,
     UserLogin,
+    StudentProfile,
     EmailVerificationRequest,
     EmailResendRequest,
     PasswordChangeRequest,
@@ -20,14 +21,38 @@ import os
 import secrets
 import string
 from dotenv import load_dotenv
+import time
+from typing import Any, Dict
 from app.email_utils import send_verification_email
 
 load_dotenv()
-SECRET_KEY = os.getenv("JWT_SECRET", "")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1"))
+SECRET_KEY = os.getenv("JWT_SECRET", "").strip()
+ALGORITHM = os.getenv("JWT_ALGORITHM", "").strip()
+if not SECRET_KEY or not ALGORITHM:
+    # Fail fast so misconfiguration is caught early
+    raise RuntimeError("JWT_SECRET or JWT_ALGORITHM missing in environment")
+
+# Token expiration (minutes). Default 4h if not supplied.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "240"))
+if ACCESS_TOKEN_EXPIRE_MINUTES < 5:
+    print(f"[WARN] ACCESS_TOKEN_EXPIRE_MINUTES is very low: {ACCESS_TOKEN_EXPIRE_MINUTES} minutes")
+
+# Basic brute force mitigation config (env-tunable)
+MAX_FAILED_LOGIN_ATTEMPTS = int(os.getenv("MAX_FAILED_LOGIN_ATTEMPTS", "5"))
+ACCOUNT_LOCK_MINUTES = int(os.getenv("ACCOUNT_LOCK_MINUTES", "15"))  # lock duration
+
+# Cache decoded tokens to avoid re-decoding / verifying on every single request.
+# NOTE: This introduces a trade-off: revocations (e.g., user deletion) propagate
+# only after the cache TTL. Keep TTL modest.
+TOKEN_CACHE_TTL_SECONDS = int(os.getenv("JWT_CACHE_TTL_SECONDS", "600"))  # default 10 minutes
+
+# token -> {"user_id": int, "exp": int(epoch seconds), "cached_at": float, "user_obj": User | None}
+_TOKEN_CACHE: Dict[str, Dict[str, Any]] = {}
+
+# Email verification configuration
+# Length of numeric verification code and expiration time (in minutes)
+VERIFICATION_CODE_LENGTH = int(os.getenv("VERIFICATION_CODE_LENGTH", "6"))
 EMAIL_CODE_EXPIRATION_MINUTES = int(os.getenv("EMAIL_CODE_EXPIRATION_MINUTES", "15"))
-VERIFICATION_CODE_LENGTH = 6
 
 
 def create_access_token(*, data: dict, expires_delta: timedelta | None = None) -> str:
@@ -50,13 +75,18 @@ def ensure_aware(dt: datetime) -> datetime:
 
 
 def set_auth_cookie(response: Response, token: str) -> None:
+    # In production you should set secure=True (HTTPS) and possibly SameSite=Strict depending on CSRF strategy.
+    secure_flag = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    same_site = os.getenv("COOKIE_SAMESITE", "lax").lower()
+    if same_site not in {"lax", "strict", "none"}:
+        same_site = "lax"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=False,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
+        samesite=same_site,
+        secure=secure_flag,
         path="/",
     )
 
@@ -69,10 +99,33 @@ def get_user_from_token(request: Request, session: Session) -> User:
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    now = time.time()
+    cache_entry = _TOKEN_CACHE.get(token)
+
+    # Fast path: use cached decoded token info (primitive values only)
+    if cache_entry and (now - cache_entry["cached_at"]) < TOKEN_CACHE_TTL_SECONDS:
+        # Check expiration without re-decoding
+        if now >= cache_entry["exp"]:
+            _TOKEN_CACHE.pop(token, None)
+            raise HTTPException(status_code=401, detail="Token expired")
+        # Always load fresh ORM object from the provided session to avoid DetachedInstanceError
+        user_id = cache_entry.get("user_id")
+        if user_id is None:
+            _TOKEN_CACHE.pop(token, None)
+            raise HTTPException(status_code=401, detail="Invalid token cache entry")
+        user_obj = session.exec(select(User).where(User.id == int(user_id))).first()
+        if not user_obj:
+            _TOKEN_CACHE.pop(token, None)
+            raise HTTPException(status_code=401, detail="User not found")
+        return user_obj
+
+    # Slow path: decode JWT anew
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if user_id is None:
+        exp = payload.get("exp")
+        if user_id is None or exp is None:
             raise HTTPException(status_code=401, detail="Invalid token payload")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -82,101 +135,85 @@ def get_user_from_token(request: Request, session: Session) -> User:
     user = session.exec(select(User).where(User.id == int(user_id))).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
+    # Store / refresh cache with primitive values only (do not store ORM instances)
+    _TOKEN_CACHE[token] = {
+        "user_id": int(user_id),
+        "exp": int(exp),
+        "cached_at": now,
+    }
     return user
 
 router = APIRouter()
 
-@router.post("/validate-registration", response_model=MessageResponse)
-def validate_registration(user_in: UserCreate, session: Session = Depends(get_session)) -> MessageResponse:
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing and existing.is_verified:
-        raise HTTPException(status_code=400, detail="Email already registered")
+@router.post("/register", response_model=UserRead)
+def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
+    # Normalize email + name trimming
+    email = (user_in.email or "").strip().lower()
+    name = (user_in.name or "").strip()
+    if not email or not name:
+        raise HTTPException(status_code=400, detail="Email and name are required")
 
+    # Validations (domain + password + username pattern)
     try:
-        validate_username(user_in.name)
+        validate_email_domain(email)
         validate_password(user_in.password)
-        validate_email_domain(user_in.email)
+        validate_username(name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    return MessageResponse(message="Registration data is valid")
-
-
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_202_ACCEPTED)
-def register_user(
-    user_in: UserCreate,
-    background_tasks: BackgroundTasks,
-    session: Session = Depends(get_session),
-) -> MessageResponse:
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing and existing.is_verified:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    try:
-        validate_username(user_in.name)
-        validate_password(user_in.password)
-        validate_email_domain(user_in.email)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    verification_code = generate_verification_code()
-    verification_hash = hash_password(verification_code)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
-
-    if existing and not existing.is_verified:
-        existing.name = user_in.name
-        existing.hashed_password = hash_password(user_in.password)
-        existing.is_verified = False
-        user = existing
-    else:
-        user = User(
-            email=user_in.email,
-            name=user_in.name,
-            hashed_password=hash_password(user_in.password),
-            is_verified=False,
-        )
-        session.add(user)
-
-    session.flush()
-
-    verification = session.exec(
-        select(EmailVerification).where(EmailVerification.user_id == user.id)
-    ).first()
-
-    if verification:
-        verification.code_hash = verification_hash
-        verification.expires_at = expires_at
-        verification.created_at = datetime.now(timezone.utc)
-    else:
-        verification = EmailVerification(
-            user_id=user.id,
-            code_hash=verification_hash,
-            expires_at=expires_at,
-        )
-        session.add(verification)
-
+    user = User(
+        email=user_in.email,
+        name=user_in.name,
+        hashed_password=hash_password(user_in.password)
+    )
+    session.add(user)
     session.commit()
     session.refresh(user)
 
-    background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
+    hashed = hash_password(user_in.password)
 
-    return MessageResponse(message="Verification code sent to your email")
+    # Derive university from domain (simple heuristic)
+    domain_part = email.split('@', 1)[1] if '@' in email else ''
+    university = None
+    if domain_part:
+        fragments = domain_part.split('.')
+        if len(fragments) >= 2:
+            university = '.'.join(fragments[-2:])
+
+    user = User(email=email, name=name, hashed_password=hashed)
+    profile = StudentProfile(user=user, university=university, username=name)
+    # Single transaction (commit once) avoids orphan profile if failure mid-way
+    session.add(user)
+    session.add(profile)
+    try:
+        session.commit()
+    except Exception as e:  # likely integrity error for duplicate
+        session.rollback()
+        # Hide raw DB exception details
+        raise HTTPException(status_code=400, detail="Could not register user (possibly duplicate email)") from e
+    session.refresh(user)
+
+    token = create_access_token(data={"sub": str(user.id)})
+    set_auth_cookie(response, token)
+    return user
 
 @router.post("/login", response_model=UserRead)
 def login_user(login_data: UserLogin, response: Response, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == login_data.email)).first()
+    email = (login_data.email or "").strip().lower()
+    user = session.exec(select(User).where(User.email == email)).first()
+    # Uniform error to avoid user enumeration
+    invalid_error = HTTPException(status_code=401, detail="Invalid email or password")
+    now = datetime.now(timezone.utc)
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
     
     if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
-    
     return user
 
 

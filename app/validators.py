@@ -87,4 +87,4 @@ def email_domain_allowed(email: str) -> bool:
 
 def validate_email_domain(email: str):
     if not email_domain_allowed(email):
-        raise ValueError("The email provided is not an university email.")
+        raise ValueError("Only university email addresses are allowed.")
