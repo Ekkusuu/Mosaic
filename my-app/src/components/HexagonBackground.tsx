@@ -75,6 +75,9 @@ const HexagonBackground: React.FC = () => {
         // Precomputed per-octave spatial noise values
         baseN: number[];
     }>>([]);
+    // Cache heavy, immutable drawing resources
+    const hexPathRef = useRef<Path2D | null>(null);
+    const gradientRef = useRef<CanvasGradient | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -86,6 +89,8 @@ const HexagonBackground: React.FC = () => {
         const setCanvasSize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            // Background is handled by CSS now; no gradient needed on canvas
+            gradientRef.current = null;
         };
         setCanvasSize();
 
@@ -157,46 +162,51 @@ const HexagonBackground: React.FC = () => {
         };
         buildGrid();
 
-        const drawHexagon = (x: number, y: number, radius: number, fillLevel: number) => {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i - Math.PI / 6;
-                const hx = radius * Math.cos(angle);
-                const hy = radius * Math.sin(angle);
-                if (i === 0) ctx.moveTo(hx, hy);
-                else ctx.lineTo(hx, hy);
-            }
-            ctx.closePath();
+        const drawHexagon = (x: number, y: number, fillLevel: number, minRgb: {r: number, g: number, b: number}, maxRgb: {r: number, g: number, b: number}) => {
+            const path = hexPathRef.current;
+            if (!path) return;
 
-            // Grayscale color interpolation (black <-> white) for monochrome hexagons
+            // Skip if completely offscreen (simple culling)
+            if (x < -hexRadius || x > canvas.width + hexRadius || y < -hexRadius || y > canvas.height + hexRadius) return;
+
+            // Color interpolation between min and max colors based on fill level
             const t = fillLevel; // 0..1
-            const r = Math.round(MIN_RGB.r + (MAX_RGB.r - MIN_RGB.r) * t);
-            const g = Math.round(MIN_RGB.g + (MAX_RGB.g - MIN_RGB.g) * t);
-            const b = Math.round(MIN_RGB.b + (MAX_RGB.b - MIN_RGB.b) * t);
+            const r = Math.round(minRgb.r + (maxRgb.r - minRgb.r) * t);
+            const g = Math.round(minRgb.g + (maxRgb.g - minRgb.g) * t);
+            const b = Math.round(minRgb.b + (maxRgb.b - minRgb.b) * t);
+
+            // Position via transform, avoid save/restore
+            ctx.setTransform(1, 0, 0, 1, x, y);
 
             if (t > 0.01) {
                 ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                ctx.fill();
+                ctx.fill(path);
             }
 
-            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
+            ctx.stroke(path);
+
+            // Reset transform
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         };
 
         const animate = (_now: number) => {
 
+            // Frame cap: 30fps (~33.33ms)
+            const frameDuration = 1000 / 30;
+            if (_now - lastFrameTimeRef.current < frameDuration) {
+                animationRef.current = requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTimeRef.current = _now;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // subtle neutral gray gradient background
-            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grad.addColorStop(0, '#f6f6f6');
-            grad.addColorStop(1, '#e8e8e8');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Background gradient handled via CSS; no canvas fill required
+
+            // Get current theme colors from CSS variables
+            const minRgb = getCSSColorAsRgb('--hex-color-min');
+            const maxRgb = getCSSColorAsRgb('--hex-color-max');
+            const strokeColor = getComputedStyle(document.documentElement).getPropertyValue('--hex-stroke').trim();
 
             // faster time factor for snappier animation
             const time = _now * 0.003;
@@ -215,12 +225,12 @@ const HexagonBackground: React.FC = () => {
             ctx.lineWidth = 1;
 
             hexagonsRef.current.forEach((hex) => {
-                // Map hex position into noise space
-                const nx = (hex.x + canvas.width / 2) * baseScale;
-                const ny = (hex.y + canvas.height / 2) * baseScale;
-
-                // Compute fBm noise and map to 0..1
-                const n = fbm(nx, ny, time * speed);
+                // Combine precomputed spatial noise with time-varying modulation
+                let sum = 0;
+                for (let o = 0; o < octaves; o++) {
+                    sum += hex.baseN[o] * amps[o] * mods[o];
+                }
+                const n = denom === 0 ? 0 : sum / denom; // result roughly -1..1
                 // Map noise (-1..1) to 0..1
                 let target = (n * 0.5 + 0.5) * 0.98 + 0.01; // small padding to avoid pure 0
                 // Emphasize crests slightly
@@ -233,7 +243,7 @@ const HexagonBackground: React.FC = () => {
                 hex.fillLevel += (hex.targetFillLevel - hex.fillLevel) * smooth;
                 hex.fillLevel = Math.max(0, Math.min(1, hex.fillLevel));
 
-                drawHexagon(hex.x, hex.y, hexRadius, hex.fillLevel);
+                drawHexagon(hex.x, hex.y, hex.fillLevel, minRgb, maxRgb);
             });
 
             animationRef.current = requestAnimationFrame(animate);
