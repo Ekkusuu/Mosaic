@@ -148,51 +148,46 @@ router = APIRouter()
 
 @router.post("/register", response_model=UserRead)
 def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
-    # Normalize email + name trimming
     email = (user_in.email or "").strip().lower()
     name = (user_in.name or "").strip()
-    if not email or not name:
-        raise HTTPException(status_code=400, detail="Email and name are required")
+    password = user_in.password or ""
 
-    # Validations (domain + password + username pattern)
+    if not email or not name or not password:
+        raise HTTPException(status_code=400, detail="Email, name and password are required")
+
+    existing = session.exec(select(User).where(User.email == email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
     try:
         validate_email_domain(email)
-        validate_password(user_in.password)
+        validate_password(password)
         validate_username(name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    user = User(
-        email=user_in.email,
-        name=user_in.name,
-        hashed_password=hash_password(user_in.password)
-    )
+    user = User(email=email, name=name, hashed_password=hash_password(password))
     session.add(user)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Failed to create user") from e
     session.refresh(user)
 
-    hashed = hash_password(user_in.password)
-
-    # Derive university from domain (simple heuristic)
-    domain_part = email.split('@', 1)[1] if '@' in email else ''
     university = None
+    domain_part = email.split('@', 1)[1] if '@' in email else ''
     if domain_part:
         fragments = domain_part.split('.')
         if len(fragments) >= 2:
             university = '.'.join(fragments[-2:])
 
-    user = User(email=email, name=name, hashed_password=hashed)
-    profile = StudentProfile(user=user, university=university, username=name)
-    # Single transaction (commit once) avoids orphan profile if failure mid-way
-    session.add(user)
-    session.add(profile)
     try:
+        profile = StudentProfile(user_id=user.id, university=university, username=name)
+        session.add(profile)
         session.commit()
-    except Exception as e:  # likely integrity error for duplicate
-        session.rollback()
-        # Hide raw DB exception details
-        raise HTTPException(status_code=400, detail="Could not register user (possibly duplicate email)") from e
-    session.refresh(user)
+    except Exception:
+        session.rollback()  # Non-fatal; continue without profile
 
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
@@ -329,6 +324,19 @@ def logout_user(response: Response):
 def get_current_user(request: Request, session: Session = Depends(get_session)):
     user = get_user_from_token(request, session)
     return user
+
+@router.get("/me/stats")
+def get_user_stats(request: Request, session: Session = Depends(get_session)):
+    from app.models import Post, Comment
+    user = get_user_from_token(request, session)
+    
+    post_count = session.exec(select(Post).where(Post.author_id == user.id)).all()
+    comment_count = session.exec(select(Comment).where(Comment.user_id == user.id)).all()
+    
+    return {
+        "posts": len(post_count),
+        "comments": len(comment_count)
+    }
 
 @router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):

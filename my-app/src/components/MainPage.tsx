@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MainPage.css';
 import Logo from './Logo';
@@ -6,6 +6,9 @@ import HexagonBackground from './HexagonBackground';
 import AIChat from './AIChat';
 import NoteViewer from './NoteViewer';
 import SettingsPopup from './SettingsPopup';
+import CreatePostPopup from './CreatePostPopup';
+import PostDetailPopup from './PostDetailPopup';
+import type { Post } from '../types/post';
 
 // Navbar Component
 interface NavItem {
@@ -196,15 +199,56 @@ const MainPage: React.FC = () => {
     setSelectedNote(null);
   };
 
-  // Mock feed data (feel free to wire to backend later)
-  const postFeed = useMemo(
-    () => [
-      { id: 1, title: 'Cleanup MySQL tables after duplicate records', tags: ['mysql'], votes: 0, answers: 0, views: 7, time: '1 min ago' },
-      { id: 2, title: 'Spring Migration - getting NoClassDefFoundError during bootrun', tags: ['spring-boot', 'spring-mvc'], votes: 0, answers: 0, views: 3, time: '2 mins ago' },
-      { id: 3, title: 'Why do two links to the same element scroll differently?', tags: ['html', 'anchor', 'hashlink'], votes: 0, answers: 0, views: 45, time: '2 mins ago' },
-    ],
-    []
-  );
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+  const [isPostDetailOpen, setIsPostDetailOpen] = useState(false);
+
+  const fetchPosts = useCallback(async () => {
+    try {
+      setIsLoadingPosts(true);
+      setPostsError(null);
+      const response = await fetch(`${API_BASE_URL}/posts`, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Unable to load questions right now.');
+      }
+      const data: Post[] = await response.json();
+      setPosts(data);
+    } catch (error) {
+      setPostsError(error instanceof Error ? error.message : 'Failed to load questions.');
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+    const interval = setInterval(fetchPosts, 15000); // Refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [fetchPosts]);
+
+  const filteredPosts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return posts;
+    }
+    return posts.filter((post) => {
+      const inTitle = post.title.toLowerCase().includes(query);
+      const inBody = post.body.toLowerCase().includes(query);
+      const inTags = post.tags?.some((tag) => tag.includes(query));
+      return inTitle || inBody || inTags;
+    });
+  }, [posts, searchQuery]);
+
+  // Handle post creation
+  const handlePostCreated = (post: Post) => {
+    setPosts((prev) => [post, ...prev.filter((p) => p.id !== post.id)]);
+    setActiveTab('posts');
+  };
 
   const publicNotesFeed = useMemo(
     () => [
@@ -323,31 +367,79 @@ const MainPage: React.FC = () => {
           <section className="feed" aria-live="polite">
             {activeTab === 'posts' ? (
               <>
-                <div className="section-header"><h2 className="section-title">Interesting posts for you</h2></div>
+                <div className="section-header section-header-flex">
+                  <div>
+                    <h2 className="section-title">Questions from the community</h2>
+                    <div className="section-subtitle">Share challenging problems and help others learn.</div>
+                  </div>
+                  <button
+                    className="ask-question-btn"
+                    onClick={() => {
+                      setActiveTab('posts');
+                      setIsCreatePostOpen(true);
+                    }}
+                  >
+                    Ask a Question
+                  </button>
+                </div>
                 <div className="posts-container">
-                  {postFeed.map(post => (
-                    <article 
-                      key={post.id} 
-                      className="post-row"
-                      onClick={() => console.log('Post clicked:', post.title)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <div className="card-stats">
-                        <span className="stat"><strong>{post.votes}</strong> votes</span>
-                        <span className="stat"><strong>{post.answers}</strong> answers</span>
-                        <span className="stat muted">{post.views} views</span>
-                      </div>
-                      <div className="card-title">{post.title}</div>
-                      <div className="card-footer">
-                        <div className="tags">
-                          {post.tags.map(t => (
-                            <span key={t} className="tag">{t}</span>
-                          ))}
+                  {postsError && !filteredPosts.length && (
+                    <div className="feed-status feed-error" role="status">{postsError}</div>
+                  )}
+                  {isLoadingPosts && !filteredPosts.length ? (
+                    <div className="feed-status" role="status">Loading questions…</div>
+                  ) : filteredPosts.length === 0 ? (
+                    <div className="feed-status" role="status">
+                      No questions yet. Be the first to ask something!
+                    </div>
+                  ) : (
+                    filteredPosts.map(post => (
+                      <article 
+                        key={post.id} 
+                        className="post-row"
+                        onClick={() => {
+                          setSelectedPostId(post.id);
+                          setIsPostDetailOpen(true);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="card-title">{post.title}</div>
+                        <p className="post-snippet">{post.body.slice(0, 200)}{post.body.length > 200 ? '…' : ''}</p>
+                        <div className="card-footer">
+                          <div className="post-meta">
+                            <span className="muted">{post.author_name || 'Anonymous'}</span>
+                            <span className="muted separator">•</span>
+                            <span className="muted">{new Date(post.created_at).toLocaleDateString()}</span>
+                          </div>
+                          <div className="post-stats">
+                            <span className="stat-item">
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M8 14l-5-5c-1-1-1-2.5 0-3.5s2.5-1 3.5 0L8 7l1.5-1.5c1-1 2.5-1 3.5 0s1 2.5 0 3.5L8 14z"/>
+                              </svg>
+                              {post.likes}
+                            </span>
+                            <span className="stat-item">
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M3 3h10v7H6L3 13V3z"/>
+                              </svg>
+                              {post.comment_count}
+                            </span>
+                            <span className="stat-item">
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <circle cx="8" cy="8" r="6"/>
+                              </svg>
+                              {post.views}
+                            </span>
+                          </div>
+                          <div className="tags">
+                            {post.tags.map(t => (
+                              <span key={t} className="tag">{t}</span>
+                            ))}
+                          </div>
                         </div>
-                        <span className="muted time">{post.time}</span>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    ))
+                  )}
                 </div>
               </>
             ) : activeTab === 'notes' ? (
@@ -395,6 +487,22 @@ const MainPage: React.FC = () => {
       <SettingsPopup
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <CreatePostPopup
+        isOpen={isCreatePostOpen}
+        onClose={() => setIsCreatePostOpen(false)}
+        onPostCreated={handlePostCreated}
+      />
+
+      <PostDetailPopup
+        isOpen={isPostDetailOpen}
+        onClose={() => {
+          setIsPostDetailOpen(false);
+          setSelectedPostId(null);
+          fetchPosts();
+        }}
+        postId={selectedPostId}
       />
     </div>
   );
