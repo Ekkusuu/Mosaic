@@ -1,9 +1,10 @@
 # app/main.py
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
-from sqlalchemy import text
-from app.db import engine
+from sqlalchemy import text, inspect
+from app.db import engine, DATABASE_URL
 from app.routers import profiles, files, users  # imports router modules
 from app.routers import chatbot
 
@@ -23,6 +24,11 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(chatbot.router, prefix="/chatbot", tags=["chatbot"])
 
 def ensure_email_verification_schema() -> None:
+    """Ensure email verification schema is up to date (PostgreSQL only)"""
+    # Skip for SQLite as it doesn't support ALTER TABLE IF NOT EXISTS
+    if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+        return
+    
     ddl_statements = [
         "ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",
         "UPDATE \"user\" SET is_verified = COALESCE(is_verified, FALSE)",
@@ -31,9 +37,12 @@ def ensure_email_verification_schema() -> None:
         "ALTER TABLE \"user\" DROP COLUMN IF EXISTS verification_code_hash",
         "ALTER TABLE \"user\" DROP COLUMN IF EXISTS verification_code_expires_at",
     ]
-    with engine.begin() as connection:
-        for statement in ddl_statements:
-            connection.execute(text(statement))
+    try:
+        with engine.begin() as connection:
+            for statement in ddl_statements:
+                connection.execute(text(statement))
+    except Exception as e:
+        print(f"Warning: Could not apply schema migration: {e}")
 
 
 @app.on_event("startup")

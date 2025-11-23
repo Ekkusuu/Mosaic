@@ -201,6 +201,25 @@
 /* Sidebar Navigation */
 .sidebar-nav {
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-muted);
+  padding: 0 16px;
+  margin: 0 0 4px 0;
 }
 
 .sidebar-nav ul {

@@ -9,7 +9,12 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set in .env")
 
 # create SQLAlchemy engine (sync)
-engine = create_engine(DATABASE_URL, echo=True)
+# For SQLite, add connect_args to enable check_same_thread=False
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, echo=True, connect_args=connect_args)
 
 # dependency for FastAPI endpoints
 def get_session():
