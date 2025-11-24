@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, BackgroundTasks, status, UploadFile, File, Form
 from sqlmodel import Session, select
 from app.security import hash_password, verify_password
 from app.db import get_session
@@ -13,8 +13,14 @@ from app.models import (
     PasswordChangeRequest,
     MessageResponse,
     EmailVerification,
+    CaptchaResponse,
+    CaptchaValidation,
+    FaceVerificationRequest,
 )
 from app.validators import validate_username, validate_password, validate_email_domain
+from app.captcha_utils import create_captcha, validate_captcha
+from app.face_recognition_utils import verify_faces, detect_face, FaceVerificationError
+from app.temp_storage import store_id_photo, get_id_photo, delete_id_photo
 from datetime import datetime, timedelta, timezone
 import jwt
 import os
@@ -48,6 +54,11 @@ TOKEN_CACHE_TTL_SECONDS = int(os.getenv("JWT_CACHE_TTL_SECONDS", "600"))  # defa
 
 # token -> {"user_id": int, "exp": int(epoch seconds), "cached_at": float, "user_obj": User | None}
 _TOKEN_CACHE: Dict[str, Dict[str, Any]] = {}
+
+# CAPTCHA storage: captcha_id -> {"text": str, "created_at": float}
+# In production, use Redis or a database table with TTL
+_CAPTCHA_STORE: Dict[str, Dict[str, Any]] = {}
+CAPTCHA_EXPIRATION_SECONDS = 300  # 5 minutes
 
 # Email verification configuration
 # Length of numeric verification code and expiration time (in minutes)
@@ -146,13 +157,72 @@ def get_user_from_token(request: Request, session: Session) -> User:
 
 router = APIRouter()
 
+
+@router.get("/captcha", response_model=CaptchaResponse)
+def get_captcha():
+    """
+    Generate a new CAPTCHA image and return it with a unique ID.
+    The frontend should display the image and send back the ID + user's answer.
+    """
+    captcha_text, base64_image = create_captcha()
+    captcha_id = secrets.token_urlsafe(16)
+    
+    # Store the CAPTCHA text with timestamp (for expiration)
+    _CAPTCHA_STORE[captcha_id] = {
+        "text": captcha_text,
+        "created_at": time.time()
+    }
+    
+    # Clean up expired CAPTCHAs (simple cleanup on each request)
+    current_time = time.time()
+    expired_ids = [
+        cid for cid, data in _CAPTCHA_STORE.items()
+        if current_time - data["created_at"] > CAPTCHA_EXPIRATION_SECONDS
+    ]
+    for cid in expired_ids:
+        del _CAPTCHA_STORE[cid]
+    
+    return CaptchaResponse(
+        captcha_id=captcha_id,
+        image_data=f"data:image/png;base64,{base64_image}"
+    )
+
+
+def validate_captcha_submission(captcha_id: str, captcha_text: str) -> None:
+    """
+    Validate a CAPTCHA submission. Raises HTTPException if invalid.
+    """
+    if not captcha_id or captcha_id not in _CAPTCHA_STORE:
+        raise HTTPException(status_code=400, detail="Invalid or expired CAPTCHA")
+    
+    captcha_data = _CAPTCHA_STORE[captcha_id]
+    
+    # Check expiration
+    if time.time() - captcha_data["created_at"] > CAPTCHA_EXPIRATION_SECONDS:
+        del _CAPTCHA_STORE[captcha_id]
+        raise HTTPException(status_code=400, detail="CAPTCHA expired")
+    
+    # Validate the text
+    if not validate_captcha(captcha_text, captcha_data["text"]):
+        raise HTTPException(status_code=400, detail="Invalid CAPTCHA text")
+    
+    # Remove used CAPTCHA (one-time use)
+    del _CAPTCHA_STORE[captcha_id]
+
+
 @router.post("/register", response_model=UserRead)
-def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
+def register_user(
+    user_in: UserCreate, 
+    background_tasks: BackgroundTasks,
+    response: Response, 
+    session: Session = Depends(get_session)
+):
     # Normalize email + name trimming
     email = (user_in.email or "").strip().lower()
     name = (user_in.name or "").strip()
+    
     if not email or not name:
-        raise HTTPException(status_code=400, detail="Email and name are required")
+        raise HTTPException(status_code=400, detail="Email, name, and password are required")
 
     # Validations (domain + password + username pattern)
     try:
@@ -161,15 +231,6 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
         validate_username(name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    user = User(
-        email=user_in.email,
-        name=user_in.name,
-        hashed_password=hash_password(user_in.password)
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
 
     hashed = hash_password(user_in.password)
 
@@ -181,8 +242,10 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
         if len(fragments) >= 2:
             university = '.'.join(fragments[-2:])
 
+    # Create user but not verified yet
     user = User(email=email, name=name, hashed_password=hashed)
     profile = StudentProfile(user=user, university=university, username=name)
+    
     # Single transaction (commit once) avoids orphan profile if failure mid-way
     session.add(user)
     session.add(profile)
@@ -190,12 +253,31 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
         session.commit()
     except Exception as e:  # likely integrity error for duplicate
         session.rollback()
-        # Hide raw DB exception details
-        raise HTTPException(status_code=400, detail="Could not register user (possibly duplicate email)") from e
+        # Log the actual error for debugging
+        import traceback
+        print(f"Registration error: {str(e)}")
+        print(traceback.format_exc())
+        # Hide raw DB exception details from client
+        raise HTTPException(status_code=400, detail=f"Could not register user: {str(e)}") from e
     session.refresh(user)
 
-    token = create_access_token(data={"sub": str(user.id)})
-    set_auth_cookie(response, token)
+    # Generate verification code for email (but don't send yet - wait for face verification)
+    verification_code = generate_verification_code()
+    verification_hash = hash_password(verification_code)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
+    
+    verification = EmailVerification(
+        user_id=user.id,
+        code_hash=verification_hash,
+        expires_at=expires_at,
+    )
+    session.add(verification)
+    session.commit()
+    
+    # Send verification email in background
+    background_tasks.add_task(send_verification_email, email, verification_code, name)
+
+    # Don't set auth cookie yet - user needs to verify face AND email first
     return user
 
 @router.post("/login", response_model=UserRead)
@@ -333,3 +415,161 @@ def get_current_user(request: Request, session: Session = Depends(get_session)):
 @router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):
     return session.exec(select(User)).all()
+
+
+@router.post("/upload-id-photo")
+async def upload_id_photo(
+    email: str = Form(...),
+    id_photo: UploadFile = File(...)
+):
+    """
+    Upload and temporarily store the student ID photo for later verification.
+    The photo will be stored for 10 minutes.
+    """
+    try:
+        id_photo_bytes = await id_photo.read()
+        
+        if not id_photo_bytes:
+            raise HTTPException(status_code=400, detail="ID photo is required")
+        
+        # Validate file size (max 10MB)
+        MAX_FILE_SIZE = 10 * 1024 * 1024
+        if len(id_photo_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File size too large. Max 10MB.")
+        
+        # Store the photo temporarily
+        store_id_photo(email, id_photo_bytes)
+        print(f"Stored ID photo for {email}, size: {len(id_photo_bytes)} bytes")
+        
+        return {"message": "ID photo uploaded successfully", "email": email}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload ID photo: {str(e)}")
+
+
+@router.post("/verify-face")
+async def verify_face(
+    email: str = Form(...),
+    id_photo: UploadFile = File(None),
+    selfie: UploadFile = File(...),
+    student_id: str = Form(None),
+    session: Session = Depends(get_session)
+):
+    """
+    Verify face by comparing student ID photo with selfie.
+    This must be completed before email verification can proceed.
+    
+    Args:
+        email: User's email address (from registration form)
+        student_id: Student ID number
+        id_photo: Student ID photo file (optional if already uploaded)
+        selfie: User's selfie photo file
+    
+    Returns:
+        Success message if faces match, error otherwise
+    """
+    print(f"\n=== FACE VERIFICATION REQUEST RECEIVED ===")
+    print(f"Email: {email}")
+    print(f"Student ID: {student_id}")
+    print(f"Timestamp: {datetime.now()}")
+    try:
+        # Get ID photo - either from upload or from temp storage
+        if id_photo and id_photo.filename:
+            id_photo_bytes = await id_photo.read()
+            print(f"Using ID photo from upload for {email}")
+        else:
+            # Try to get from temp storage
+            print(f"Attempting to retrieve ID photo from storage for {email}")
+            id_photo_bytes = get_id_photo(email)
+            if not id_photo_bytes:
+                print(f"ID photo not found in storage for {email}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="ID photo not found. Please restart the verification process and upload your student ID again."
+                )
+        
+        selfie_bytes = await selfie.read()
+        
+        # Validate that files are not empty
+        if not id_photo_bytes or not selfie_bytes:
+            raise HTTPException(status_code=400, detail="Both ID photo and selfie are required")
+        
+        # Validate file sizes (max 10MB each)
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+        if len(id_photo_bytes) > MAX_FILE_SIZE or len(selfie_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File size too large. Max 10MB per file.")
+        
+        # Get the user from database
+        user = session.exec(select(User).where(User.email == email)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found. Please register first.")
+        
+        # Check if already verified
+        if user.face_verified:
+            return {"message": "Face already verified", "verified": True}
+        
+        # Detect faces in both images first (using Detection API)
+        try:
+            id_detection = detect_face(id_photo_bytes)
+            if not id_detection["face_detected"]:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No face detected in ID photo. Please upload a clear photo of your student ID."
+                )
+            
+            selfie_detection = detect_face(selfie_bytes)
+            if not selfie_detection["face_detected"]:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="No face detected in selfie. Please take a clear selfie showing your face."
+                )
+        except FaceVerificationError as e:
+            print(f"FaceVerificationError during detection: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Face detection failed: {str(e)}")
+        
+        # Verify faces match (using Verification API)
+        try:
+            verification_result = verify_faces(id_photo_bytes, selfie_bytes, threshold=0.7)
+            
+            if not verification_result["is_match"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Face verification failed. The selfie does not match the ID photo. Similarity: {verification_result['similarity']:.2%}"
+                )
+            
+            # Update user record with verification status
+            user.student_id = student_id
+            user.face_verified = True
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            
+            # Clean up stored ID photo
+            delete_id_photo(email)
+            
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                content={
+                    "message": "Face verification successful! You may now proceed with email verification.",
+                    "verified": True,
+                    "similarity": verification_result["similarity"]
+                },
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+            
+        except FaceVerificationError as e:
+            print(f"FaceVerificationError: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Face verification failed: {str(e)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Unexpected error in verify_face: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"An error occurred during face verification: {str(e)}")

@@ -13,3 +13,5 @@ zstandard
 pytest
 requests
 httpx
+captcha
+Pillow

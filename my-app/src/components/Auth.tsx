@@ -5,7 +5,7 @@ import Logo from './Logo';
 import HexagonBackground from './HexagonBackground';
 import EmailVerificationPopup from './EmailVerificationPopup';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8001';
 
 const Auth: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -25,6 +25,7 @@ const Auth: React.FC = () => {
         confirmPassword: '',
         name: ''
     });
+    const navigate = useNavigate();
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -75,6 +76,7 @@ const Auth: React.FC = () => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'include',
                     body: JSON.stringify({
                         email: formData.email,
                         password: formData.password,
@@ -83,20 +85,28 @@ const Auth: React.FC = () => {
                 });
 
                 if (!registerResponse.ok) {
-                    const errorData = await registerResponse.json();
-                    throw new Error(errorData.detail || 'Registration failed');
+                    let errorMessage = 'Registration failed';
+                    try {
+                        const errorData = await registerResponse.json();
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        // If response isn't JSON, use status text
+                        errorMessage = registerResponse.statusText || errorMessage;
+                    }
+                    throw new Error(errorMessage);
                 }
 
-                setPendingRegistrationData({
-                    email: formData.email,
-                    name: formData.name
+                // Redirect to face verification page
+                navigate('/verify-face', {
+                    state: {
+                        email: formData.email
+                    }
                 });
-                setVerificationError('');
-                setShowVerification(true);
             }
         } catch (err: any) {
-            setError(err.message);
-            console.error('Authentication error:', err);
+            const errorMessage = err?.message || err?.detail || (typeof err === 'string' ? err : 'An error occurred');
+            setError(errorMessage);
+            console.error('Auth error:', err);
         } finally {
             setLoading(false);
         }
@@ -195,8 +205,6 @@ const Auth: React.FC = () => {
         setVerificationError('');
         // Keep pendingRegistrationData in case user wants to try again
     };
-
-    const navigate = useNavigate();
 
     return (
         <div className="auth-container">

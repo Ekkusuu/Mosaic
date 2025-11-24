@@ -31,6 +31,9 @@ class User(UserBase, table=True):
     hashed_password: str
     # Email verification flag (column ensured at startup via DDL in app.main)
     is_verified: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default="0"))
+    # Face verification fields
+    student_id: Optional[str] = Field(default=None, sa_column=Column(String(100), nullable=True))
+    face_verified: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default="0"))
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     last_login_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     failed_login_attempts: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
@@ -146,3 +149,23 @@ class EmailVerification(SQLModel, table=True):
     expires_at: datetime
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     user: Optional[User] = Relationship(back_populates="verification")
+
+
+# CAPTCHA models
+class CaptchaResponse(SQLModel):
+    """Response model for CAPTCHA generation"""
+    captcha_id: str  # Unique identifier for this CAPTCHA
+    image_data: str  # Base64-encoded image
+
+
+class CaptchaValidation(SQLModel):
+    """Request model for CAPTCHA validation during auth"""
+    captcha_id: str
+    captcha_text: str
+
+
+# Face verification models
+class FaceVerificationRequest(SQLModel):
+    """Request model for face verification"""
+    email: str  # User email (from registration)
+    student_id: str  # Student ID number

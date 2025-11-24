@@ -1,0 +1,108 @@
+.email-verification-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 20px;
+}
+
+.email-verification-container {
+    background: var(--color-surface, #1a1a2e);
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 500px;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.verification-form {
+    margin: 24px 0;
+}
+
+.verification-form .form-group {
+    margin-bottom: 24px;
+}
+
+.verification-form label {
+    display: block;
+    color: var(--color-text, #fff);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.verification-form input {
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--color-text, #fff);
+    font-size: 20px;
+    text-align: center;
+    letter-spacing: 0.5em;
+    transition: all 0.2s;
+}
+
+.verification-form input:focus {
+    outline: none;
+    border-color: var(--color-accent, #6366f1);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.verify-btn {
+    width: 100%;
+    padding: 14px 28px;
+    background: var(--color-accent, #6366f1);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.verify-btn:hover:not(:disabled) {
+    background: var(--color-accent-hover, #5558e3);
+    transform: translateY(-2px);
+}
+
+.verify-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.resend-section {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.resend-section p {
+    color: var(--color-muted, #888);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.resend-btn {
+    background: transparent;
+    color: var(--color-accent, #6366f1);
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    transition: all 0.2s;
+}
+
+.resend-btn:hover {
+    color: var(--color-accent-hover, #5558e3);
+}
+
+@media (max-width: 640px) {
+    .email-verification-container {
+        padding: 24px;
+    }
+}
