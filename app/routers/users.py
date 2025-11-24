@@ -147,7 +147,12 @@ def get_user_from_token(request: Request, session: Session) -> User:
 router = APIRouter()
 
 @router.post("/register", response_model=UserRead)
-def register_user(user_in: UserCreate, response: Response, session: Session = Depends(get_session)):
+def register_user(
+    user_in: UserCreate,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
     email = (user_in.email or "").strip().lower()
     name = (user_in.name or "").strip()
     password = user_in.password or ""
@@ -188,6 +193,25 @@ def register_user(user_in: UserCreate, response: Response, session: Session = De
         session.commit()
     except Exception:
         session.rollback()  # Non-fatal; continue without profile
+
+    # Create initial email verification entry & send code if user not verified yet
+    if not user.is_verified:
+        verification_code = generate_verification_code()
+        verification_hash = hash_password(verification_code)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
+
+        verification = EmailVerification(
+            user_id=user.id,
+            code_hash=verification_hash,
+            expires_at=expires_at,
+        )
+        try:
+            session.add(verification)
+            session.commit()
+        except Exception:
+            session.rollback()  # Non-fatal; proceed without email but user remains unverified
+        else:
+            background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
 
     token = create_access_token(data={"sub": str(user.id)})
     set_auth_cookie(response, token)
