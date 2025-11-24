@@ -174,7 +174,7 @@
     white-space: pre-wrap;
 }
 
-.post-stats {
+.post-detail-popup .post-stats {
     display: flex;
     gap: 24px;
     padding: 16px 0;

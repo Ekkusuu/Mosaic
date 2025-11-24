@@ -714,6 +714,10 @@
     flex-wrap: wrap;
     margin: 8px 0 12px 0;
     padding: 0;
+    /* Ensure no borders are applied (override other rules) */
+    border: none;
+    border-top: none;
+    border-bottom: none;
 }
 
 .stat-item {
