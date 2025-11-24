@@ -62,6 +62,49 @@
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
 }
 
+.rag-panel {
+  border: 1px dashed var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 92%, transparent);
+  padding: 8px;
+  border-radius: 10px;
+  margin: 8px 12px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.rag-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rag-clear {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.rag-item {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-bottom: 8px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+}
+
+.rag-source {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.rag-text {
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
 .ai-input {
   background: color-mix(in srgb, var(--color-panel) 85%, transparent);
   border: 1px solid var(--color-border);

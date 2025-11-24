@@ -21,6 +21,7 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pulledChunks, setPulledChunks] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
@@ -56,9 +57,14 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
         const text = await res.text();
         throw new Error(text || `Error ${res.status}`);
       }
-      const data: { reply: string } = await res.json();
+      const data: { reply: string; contexts?: any[] } = await res.json();
       const assistantMsg: Message = { id: Date.now() + 1, role: 'assistant', content: data.reply };
       setChatMessages(prev => [...prev, assistantMsg]);
+      if (data.contexts && Array.isArray(data.contexts)) {
+        setPulledChunks(data.contexts);
+      } else {
+        setPulledChunks([]);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to get response');
       const failMsg: Message = { id: Date.now() + 2, role: 'assistant', content: 'Sorry, I had an issue answering that.', error: true };
@@ -93,6 +99,23 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
             <div className="bubble">{m.content}</div>
           </div>
         ))}
+        {/* RAG retrieved contexts panel shown just above the input area */}
+        {pulledChunks.length > 0 && (
+          <div className="rag-panel" aria-live="polite">
+            <div className="rag-panel-header">
+              <strong>Retrieved Contexts</strong>
+              <button className="rag-clear" onClick={() => setPulledChunks([])} title="Hide retrieved contexts">Hide</button>
+            </div>
+            <div className="rag-items">
+              {pulledChunks.map((c, idx) => (
+                <div key={idx} className="rag-item">
+                  <div className="rag-source">{c.source || 'unknown'}</div>
+                  <div className="rag-text">{c.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {loading && (
           <div className="ai-message assistant loading">
             <div className="bubble">Thinking...</div>

@@ -138,3 +138,16 @@ Desktop.ini
 
 # Keep node modules from accidental imports into Python virtualenvs
 site-packages/
+
+# RAG models: ignore all files inside the folder but keep the folder itself tracked
+# Add a `.gitkeep` file in `rag-models/` to allow keeping the directory in Git.
+/rag-models/*
+!/rag-models/.gitkeep
+
+# Uploads: ignore user-uploaded files but keep the directory placeholder
+/uploads/*
+!/uploads/.gitkeep
+
+# Chroma DB persistence: ignore the database and all internal files
+/.chromadb/
+.chromadb/*
