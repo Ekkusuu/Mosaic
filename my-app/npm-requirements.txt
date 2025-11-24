@@ -1,0 +1,11 @@
+# npm packages required for frontend Markdown rendering
+# One package name per line. Lines starting with '#' are ignored.
+react
+react-markdown
+remark-gfm
+react-router-dom
+react-dom
+
+# Optional: syntax highlighting for fenced code blocks
+# Install this if you want highlighted code blocks
+rehype-highlight

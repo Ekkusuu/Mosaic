@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './AIChat.css';
 
 interface Message {
@@ -96,7 +98,13 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
       <div className="ai-messages">
         {chatMessages.map(m => (
           <div key={m.id} className={`ai-message ${m.role} ${m.error ? 'error' : ''}`}>
-            <div className="bubble">{m.content}</div>
+            <div className="bubble">
+              {m.role === 'assistant' ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+              ) : (
+                m.content
+              )}
+            </div>
           </div>
         ))}
         {/* RAG retrieved contexts panel shown just above the input area */}
