@@ -10,7 +10,9 @@
   backdrop-filter: blur(10px) saturate(120%);
   display: grid;
   grid-template-rows: 1fr auto;
-  height: 540px;
+  /* Responsive height: at least the old size, but not more than 80vh (capped at 900px) */
+  height: min(80vh, 900px);
+  min-height: 540px;
   overflow: hidden;
 }
 

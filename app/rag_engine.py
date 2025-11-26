@@ -711,82 +711,111 @@ def retrieve_context(query: str, top_k: Optional[int] = None) -> Dict[str, List[
     if not rag_cfg.get("enabled", True):
         return []
     
+    # Step 0: determine how many to pull by distance initially
     if top_k is None:
-        top_k = int(rag_cfg.get("top_k", 3))
-    
+        initial_top_k = int(rag_cfg.get("top_k", 3))
+    else:
+        initial_top_k = int(top_k)
+
     collection = get_collection()
-    
+
     # Check if collection has any documents
     try:
         count = collection.count()
         if count == 0:
             print("Warning: RAG collection is empty. No context to retrieve.")
-            return []
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
     except Exception as e:
         print(f"Error checking collection count: {e}")
-        return []
-    
+        return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+
     try:
-        # Request up to `top_k` from the vector DB
+        # Debug: print the incoming query (truncate if very long)
+        try:
+            q_preview = (query[:200] + '...') if isinstance(query, str) and len(query) > 200 else query
+            print(f"RAG: running retrieve_context for query: {q_preview}")
+        except Exception:
+            pass
+        # 1) Retrieve top `initial_top_k` items by distance from the vector DB
         results = collection.query(
             query_texts=[query],
-            n_results=min(top_k, count)  # Don't request more than available
+            n_results=min(initial_top_k, count)
         )
 
-        contexts = []
-        # Safely extract results with multiple checks
         if not results:
-            return {"accepted": [], "rejected_by_distance": []}
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
 
         documents = results.get("documents", [])
         metadatas = results.get("metadatas", [])
         distances = results.get("distances", [])
 
-        # Check if we have documents in the first list
         if not documents or len(documents) == 0 or not documents[0]:
-            return []
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
 
-        # Iterate through documents and build initial contexts
+        contexts: List[Dict[str, Any]] = []
         for i, doc in enumerate(documents[0]):
-            context = {"text": doc}
+            ctx: Dict[str, Any] = {"text": doc}
+            ctx["metadata"] = (metadatas[0][i] if metadatas and len(metadatas) > 0 and len(metadatas[0]) > i else {})
+            ctx["distance"] = (distances[0][i] if distances and len(distances) > 0 and len(distances[0]) > i else 0.0)
+            contexts.append(ctx)
 
-            # Safely get metadata
-            if metadatas and len(metadatas) > 0 and len(metadatas[0]) > i:
-                context["metadata"] = metadatas[0][i]
-            else:
-                context["metadata"] = {}
+        # Debug: list retrieved candidates with source and distance
+        try:
+            print(f"RAG: retrieved {len(contexts)} candidates (top {initial_top_k}):")
+            for c in contexts:
+                src = c.get("metadata", {}).get("source_file", "unknown")
+                idx = c.get("metadata", {}).get("chunk_index", "?")
+                dist = c.get("distance", 0)
+                print(f"  - {src} [chunk {idx}] distance={dist:.4f}")
+        except Exception:
+            pass
 
-            # Safely get distance
-            if distances and len(distances) > 0 and len(distances[0]) > i:
-                context["distance"] = distances[0][i]
-            else:
-                context["distance"] = 0.0
-
-            contexts.append(context)
-
-        # PER-QUERY PIPELINE:
-        # 1) Apply max_distance filter (if configured)
+        # 2) Apply max_distance threshold
         max_distance = rag_cfg.get("max_distance", 1.5)
         if max_distance != -1:
-            rejected_by_distance = [c for c in contexts if c.get("distance", 0) > max_distance]
-            candidates = [c for c in contexts if c.get("distance", 0) <= max_distance]
+            rejected_by_distance = [c for c in contexts if c.get("distance", 0) > float(max_distance)]
+            candidates = [c for c in contexts if c.get("distance", 0) <= float(max_distance)]
         else:
             rejected_by_distance = []
             candidates = contexts
 
-        # 2) If reranker enabled, rerank the remaining candidates and keep top `top_k`
+        # Debug: after distance filtering
+        try:
+            print(f"RAG: {len(candidates)} candidates remain after max_distance={max_distance} (rejected {len(rejected_by_distance)})")
+            for c in candidates:
+                src = c.get("metadata", {}).get("source_file", "unknown")
+                idx = c.get("metadata", {}).get("chunk_index", "?")
+                dist = c.get("distance", 0)
+                print(f"  * {src} [chunk {idx}] distance={dist:.4f}")
+        except Exception:
+            pass
+
+        # 3) Rerank the remaining candidates and keep top `reranker_top_k`
         use_reranker = rag_cfg.get("use_reranker", False)
         reranker_min_score = rag_cfg.get("reranker_min_score", -1)
+        reranker_top_k = int(rag_cfg.get("reranker_top_k", initial_top_k))
 
         final_chunks: List[Dict[str, Any]] = []
         rejected_by_score: List[Dict[str, Any]] = []
 
         if use_reranker and candidates:
-            # Rerank and request no more than `top_k` results after reranking
-            ranked = rerank_contexts(query, candidates, top_k=top_k)
-            # After reranking we may additionally filter by min score if configured
+            # Rerank candidates; request at most `reranker_top_k` after reranking
+            ranked = rerank_contexts(query, candidates, top_k=reranker_top_k)
+
+            # Debug: show reranker scores for ranked items
+            try:
+                print(f"RAG: reranked candidates (top {reranker_top_k} requested): {len(ranked)}")
+                for c in ranked:
+                    src = c.get("metadata", {}).get("source_file", "unknown")
+                    idx = c.get("metadata", {}).get("chunk_index", "?")
+                    score = c.get("rerank_score", None)
+                    print(f"  => {src} [chunk {idx}] rerank_score={score}")
+            except Exception:
+                pass
+
+            # 4) Apply min reranker score threshold (if configured)
             if reranker_min_score != -1:
-                kept = []
+                kept: List[Dict[str, Any]] = []
                 for c in ranked:
                     score = c.get("rerank_score")
                     if score is None or float(score) >= float(reranker_min_score):
@@ -795,11 +824,23 @@ def retrieve_context(query: str, top_k: Optional[int] = None) -> Dict[str, List[
                         c["rejection_reason"] = "score"
                         rejected_by_score.append(c)
                 ranked = kept
-            # Ensure we keep at most top_k after filtering
-            final_chunks = ranked[:int(top_k)]
+
+            # Debug: after applying reranker_min_score
+            try:
+                print(f"RAG: {len(ranked)} remain after reranker_min_score={reranker_min_score} (rejected {len(rejected_by_score)})")
+                for c in ranked:
+                    src = c.get("metadata", {}).get("source_file", "unknown")
+                    idx = c.get("metadata", {}).get("chunk_index", "?")
+                    score = c.get("rerank_score", None)
+                    print(f"  ok: {src} [chunk {idx}] score={score}")
+            except Exception:
+                pass
+
+            # The accepted set are the top reranker results (already limited)
+            final_chunks = ranked[:reranker_top_k]
         else:
-            # No reranker: just keep at most top_k distance-filtered chunks
-            final_chunks = candidates[:int(top_k)]
+            # No reranker: keep up to the initial top_k from distance-filtered candidates
+            final_chunks = candidates[:initial_top_k]
 
         # Mark rejected items with a reason where appropriate
         for r in rejected_by_distance:
@@ -810,7 +851,7 @@ def retrieve_context(query: str, top_k: Optional[int] = None) -> Dict[str, List[
         import traceback
         print(f"Error retrieving context: {e}")
         print(traceback.format_exc())
-        return []
+        return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
 
 
 def format_context_for_prompt(contexts: List[Dict[str, Any]]) -> str:
