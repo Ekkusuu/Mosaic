@@ -12,7 +12,7 @@ the new columns & constraints. For fresh dev databases this is fine.
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey, Text
 
 
 def utcnow() -> datetime:
@@ -38,6 +38,7 @@ class User(UserBase, table=True):
 
     profiles: List["StudentProfile"] = Relationship(back_populates="user")
     files: List["File"] = Relationship(back_populates="owner")
+    notes: List["Note"] = Relationship(back_populates="owner")
     verification: Optional["EmailVerification"] = Relationship(
         back_populates="user", sa_relationship_kwargs={"uselist": False}
     )
@@ -107,6 +108,7 @@ class File(SQLModel, table=True):
     filename: str  # original user-provided filename (not trusted for storage path)
     filepath: str  # absolute or configured storage path
     owner_id: int = Field(foreign_key="user.id")
+    note_id: Optional[int] = Field(default=None, foreign_key="note.id")  # optional linkage to a Note
     content_type: Optional[str] = None
     size: Optional[int] = None  # bytes
     checksum_sha256: Optional[str] = None
@@ -120,6 +122,19 @@ class File(SQLModel, table=True):
     visibility: str = Field(default="private")  # private|public|unlisted
     uploaded_at: Optional[str] = None  # ISO timestamp
     owner: Optional[User] = Relationship(back_populates="files")
+    note: Optional["Note"] = Relationship(back_populates="files")
+
+# Notes (plain text). Users can attach existing files to notes via File.note_id
+class Note(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    title: Optional[str] = Field(default=None, sa_column=Column(String(200), nullable=True))
+    # All notes are text; store as string with a generous upper bound
+    content: str = Field(sa_column=Column(String(10000), nullable=False))
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    owner: Optional[User] = Relationship(back_populates="notes")
+    files: List["File"] = Relationship(back_populates="note")
 
 # Email verification models
 class EmailVerificationRequest(SQLModel):
