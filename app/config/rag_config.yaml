@@ -5,7 +5,6 @@ chat:
     available, prefer and cite that information over general knowledge.
 
     Focus on these behaviours:
-    - When citing knowledge base context, include a short source marker (e.g. "[source: file.md]")
       before or after the relevant excerpt.
     - Ask one clarifying question only when needed to produce a better answer.
     - If the user requests examples or code, include a small, runnable snippet and label the

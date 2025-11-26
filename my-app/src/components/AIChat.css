@@ -88,6 +88,41 @@
   margin: 0.25em 0 0.25em 1.1em;
 }
 
+/* Sources / References block appended to assistant messages */
+.ai-references {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-border);
+  max-width: min(80%, 72ch);
+}
+
+.ai-references-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.ai-references-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.ai-reference-item {
+  font-size: 12px;
+  background: color-mix(in srgb, var(--color-panel) 94%, transparent);
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
 .ai-message.user .bubble {
   background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
 }
@@ -102,48 +137,40 @@
   border-top: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
 }
+/* removed separate RAG panel - only Sources list under messages is used */
 
-.rag-panel {
-  border: 1px dashed var(--color-border);
-  background: color-mix(in srgb, var(--color-panel) 92%, transparent);
-  padding: 8px;
+/* Tweak the appended Sources block to align visually with the assistant bubble */
+.ai-references {
+  margin-top: 6px;
+  padding: 6px 8px;
   border-radius: 10px;
-  margin: 8px 12px;
-  max-height: 180px;
-  overflow: auto;
-}
-
-.rag-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.rag-clear {
   background: transparent;
   border: none;
-  color: var(--color-muted);
-  cursor: pointer;
+  max-width: min(78%, 68ch);
 }
 
-.rag-item {
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  margin-bottom: 8px;
-  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
-}
-
-.rag-source {
-  font-size: 12px;
+.ai-references-title {
+  font-size: 11px;
+  font-weight: 600;
   color: var(--color-muted);
   margin-bottom: 6px;
 }
 
-.rag-text {
-  font-size: 14px;
-  white-space: pre-wrap;
+.ai-references-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.ai-reference-item {
+  font-size: 12px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
 }
 
 .ai-input {
@@ -221,4 +248,43 @@
   height: 18px;
   margin: auto;
   overflow: visible;
+}
+
+/* Typing / thinking animated dots */
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+.typing-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: color-mix(in srgb, var(--color-muted) 60%, transparent);
+  border-radius: 50%;
+  opacity: 0.35;
+  transform: translateY(0);
+  animation: dot-pulse 1s infinite ease-in-out;
+}
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.12s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.24s; }
+
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.35; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-6px); }
+}
+
+/* Screen-reader only text */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }

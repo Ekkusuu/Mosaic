@@ -96,7 +96,7 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
   return (
     <div className={`ai-chat-container ${className || ''}`}>
       <div className="ai-messages">
-        {chatMessages.map(m => (
+        {chatMessages.map((m, idx) => (
           <div key={m.id} className={`ai-message ${m.role} ${m.error ? 'error' : ''}`}>
             <div className="bubble">
               {m.role === 'assistant' ? (
@@ -105,28 +105,31 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
                 m.content
               )}
             </div>
+
+            {/* If this is the latest assistant message and we have pulledChunks, render a styled Sources block */}
+            {m.role === 'assistant' && idx === chatMessages.length - 1 && pulledChunks.length > 0 && (
+              <div className="ai-references" aria-live="polite">
+                <div className="ai-references-title">Sources</div>
+                <ul className="ai-references-list">
+                  {pulledChunks.map((c, i) => (
+                    <li key={i} className="ai-reference-item">{c.source || 'unknown'}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
-        {/* RAG retrieved contexts panel shown just above the input area */}
-        {pulledChunks.length > 0 && (
-          <div className="rag-panel" aria-live="polite">
-            <div className="rag-panel-header">
-              <strong>Retrieved Contexts</strong>
-              <button className="rag-clear" onClick={() => setPulledChunks([])} title="Hide retrieved contexts">Hide</button>
-            </div>
-            <div className="rag-items">
-              {pulledChunks.map((c, idx) => (
-                <div key={idx} className="rag-item">
-                  <div className="rag-source">{c.source || 'unknown'}</div>
-                  <div className="rag-text">{c.text}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Only show Sources under the assistant message; no separate retrieved panel */}
         {loading && (
           <div className="ai-message assistant loading">
-            <div className="bubble">Thinking...</div>
+            <div className="bubble">
+              <span className="typing-dots" aria-hidden>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              <span className="sr-only">Thinking…</span>
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
