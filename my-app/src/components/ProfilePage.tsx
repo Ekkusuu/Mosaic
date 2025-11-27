@@ -327,11 +327,41 @@ const ProfilePage: React.FC = () => {
         setShowNoteEditor(true);
     };
 
-    const handleSaveNote = (note: any) => {
-        // TODO: Implement note saving logic (API call)
-        console.log('Saving note:', note);
-        setShowNoteEditor(false);
-        setEditingNote(null);
+    const handleSaveNote = async (note: any) => {
+        try {
+            const formData = new FormData();
+            formData.append('title', note.title);
+            formData.append('subject', note.subject || '');
+            formData.append('visibility', note.visibility.toLowerCase());
+            formData.append('content', note.content);
+
+            if (note.attachments && note.attachments.length > 0) {
+                note.attachments.forEach((file: File) => {
+                    formData.append('attachments', file);
+                });
+            }
+
+            const response = await fetch('http://localhost:8000/notes/', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create note');
+            }
+
+            const result = await response.json();
+            console.log('Note created:', result);
+            
+            setShowNoteEditor(false);
+            setEditingNote(null);
+            alert('Note created successfully!');
+        } catch (error) {
+            console.error('Error saving note:', error);
+            alert(`Failed to save note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     };
 
     const handleCloseNoteEditor = () => {

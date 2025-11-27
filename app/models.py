@@ -107,9 +107,9 @@ class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str  # original user-provided filename (not trusted for storage path)
     filepath: str  # absolute or configured storage path
+    file_type: str = Field(default="attachment") #attachement|content
     owner_id: int = Field(foreign_key="user.id")
     note_id: Optional[int] = Field(default=None, foreign_key="note.id")  # optional linkage to a Note
-    content_type: Optional[str] = None
     size: Optional[int] = None  # bytes
     checksum_sha256: Optional[str] = None
     # New metadata for storage pipeline
@@ -119,7 +119,6 @@ class File(SQLModel, table=True):
     encryption_nonce_hex: Optional[str] = None
     encryption_tag_hex: Optional[str] = None
     encryption_key_id: Optional[str] = None
-    visibility: str = Field(default="private")  # private|public|unlisted
     uploaded_at: Optional[str] = None  # ISO timestamp
     owner: Optional[User] = Relationship(back_populates="files")
     note: Optional["Note"] = Relationship(back_populates="files")
@@ -129,8 +128,8 @@ class Note(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id")
     title: Optional[str] = Field(default=None, sa_column=Column(String(200), nullable=True))
-    # All notes are text; store as string with a generous upper bound
-    content: str = Field(sa_column=Column(String(10000), nullable=False))
+    subject: Optional[str] = Field(default=None, sa_column=Column(String(120), nullable=True))
+    visibility: str = Field(default="private")  # private|public
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     owner: Optional[User] = Relationship(back_populates="notes")
