@@ -13,3 +13,9 @@ zstandard
 pytest
 requests
 httpx
+chromadb
+sentence-transformers
+transformers
+tokenizers
+torch
+accelerate

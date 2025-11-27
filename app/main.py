@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.db import engine
 from app.routers import profiles, files, users, posts  # imports router modules
 from app.routers import chatbot
+from app.routers import rag
 
 app = FastAPI(title="Student Knowledge Platform - Backend")
 
@@ -22,6 +23,7 @@ app.include_router(files.router, prefix="/files", tags=["files"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(posts.router, prefix="/posts", tags=["posts"])
 app.include_router(chatbot.router, prefix="/chatbot", tags=["chatbot"])
+app.include_router(rag.router, prefix="/rag", tags=["rag"])
 
 def ensure_email_verification_schema() -> None:
     ddl_statements = [

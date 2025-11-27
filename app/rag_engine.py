@@ -1,0 +1,946 @@
+from __future__ import annotations
+
+import os
+import json
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+
+import chromadb
+from chromadb.config import Settings
+
+from app.llama_engine import get_config, chat_completion
+
+# Global ChromaDB client
+_chroma_client: Optional[chromadb.Client] = None
+_collection: Optional[chromadb.Collection] = None
+
+# Global reranker model
+_reranker_model = None
+
+# File tracking metadata
+_file_metadata_path: Optional[Path] = None
+
+
+def get_file_metadata_path() -> Path:
+    """Get the path to the file metadata tracking JSON."""
+    global _file_metadata_path
+    if _file_metadata_path is not None:
+        return _file_metadata_path
+    
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    persist_dir = rag_cfg.get("persist_directory", ".chromadb")
+    
+    # Store metadata in the same directory as ChromaDB
+    persist_path = Path(__file__).resolve().parents[1] / persist_dir
+    persist_path.mkdir(parents=True, exist_ok=True)
+    
+    _file_metadata_path = persist_path / "file_metadata.json"
+    return _file_metadata_path
+
+
+def load_file_metadata() -> Dict[str, Dict[str, Any]]:
+    """Load file metadata from disk."""
+    metadata_path = get_file_metadata_path()
+    if not metadata_path.exists():
+        return {}
+    
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading file metadata: {e}")
+        return {}
+
+
+def save_file_metadata(metadata: Dict[str, Dict[str, Any]]) -> None:
+    """Save file metadata to disk."""
+    metadata_path = get_file_metadata_path()
+    try:
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+    except Exception as e:
+        print(f"Error saving file metadata: {e}")
+
+
+def get_file_info(file_path: Path) -> Dict[str, Any]:
+    """Get file size and modification time."""
+    try:
+        stat = file_path.stat()
+        return {
+            "size": stat.st_size,
+            "mtime": stat.st_mtime
+        }
+    except Exception:
+        return {"size": 0, "mtime": 0}
+
+
+def has_file_changed(file_path: Path, stored_metadata: Dict[str, Any]) -> bool:
+    """Check if a file has changed based on size."""
+    current_info = get_file_info(file_path)
+    stored_info = stored_metadata.get(str(file_path), {})
+    
+    # If file wasn't indexed before, it's considered changed
+    if not stored_info:
+        return True
+    
+    # Check if size has changed
+    return current_info["size"] != stored_info.get("size", 0)
+
+
+def get_chroma_client() -> chromadb.Client:
+    """Get or create the ChromaDB persistent client."""
+    global _chroma_client
+    if _chroma_client is not None:
+        return _chroma_client
+
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    persist_dir = rag_cfg.get("persist_directory", ".chromadb")
+
+    # Resolve persist directory relative to project root
+    persist_path = Path(__file__).resolve().parents[1] / persist_dir
+    persist_path.mkdir(parents=True, exist_ok=True)
+
+    _chroma_client = chromadb.PersistentClient(
+        path=str(persist_path),
+        settings=Settings(anonymized_telemetry=False)
+    )
+    return _chroma_client
+
+
+def get_collection() -> chromadb.Collection:
+    """Get or create the RAG collection."""
+    global _collection
+    if _collection is not None:
+        return _collection
+
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    collection_name = rag_cfg.get("collection_name", "mosaic_knowledge")
+    embedding_model = rag_cfg.get("embedding_model", "all-MiniLM-L6-v2")
+
+    client = get_chroma_client()
+    
+    # Resolve embedding model path (relative to project root)
+    model_path = Path(__file__).resolve().parents[1] / embedding_model
+    
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Embedding model not found at: {model_path}\n"
+            f"Expected folder: {embedding_model}\n"
+            "Please download the model and place it in the project root."
+        )
+    
+    # Load local sentence-transformers model
+    from sentence_transformers import SentenceTransformer
+    
+    class LocalEmbeddingFunction:
+        """Custom embedding function using local SentenceTransformer model."""
+        def __init__(self, model_path: Path):
+            # Force CPU execution by default to support systems without GPU.
+            # If you intentionally want GPU support later, change `embedding_device`
+            # in the `rag` config or update this code.
+            device = 'cpu'
+            self.model = SentenceTransformer(str(model_path), device=device)
+            self._model_path = model_path
+            print(f"✓ Embedding model loaded on: {device} (forced)")
+        
+        def __call__(self, input: List[str]) -> List[List[float]]:
+            """Embed a batch of texts."""
+            embeddings = self.model.encode(input, convert_to_numpy=True)
+            return embeddings.tolist()
+        
+        def embed_documents(self, texts: List[str]) -> List[List[float]]:
+            """Embed documents (used by some ChromaDB versions)."""
+            return self(texts)
+        
+        def embed_query(self, input: str = None, query: str = None, **kwargs) -> List[List[float]]:
+            """Embed a single query string. Accepts both 'input' and 'query' kwargs.
+            Returns a list of embeddings (even though it's just one) to match ChromaDB's expected format.
+            """
+            query_text = input or query
+            if query_text is None:
+                raise ValueError("Either 'input' or 'query' must be provided")
+            
+            # Ensure query_text is a string, not a list
+            if isinstance(query_text, list):
+                if len(query_text) == 0:
+                    raise ValueError("Query list is empty")
+                query_text = query_text[0]
+            
+            # Convert to string if needed
+            query_text = str(query_text)
+            
+            # Encode and return as a list of embeddings (2D structure)
+            embedding = self.model.encode([query_text], convert_to_numpy=True)
+            return embedding.tolist()  # Returns List[List[float]]
+        
+        def name(self) -> str:
+            """Return the name of the embedding function."""
+            return f"local-sentence-transformer-{self._model_path.name}"
+    
+    embedding_function = LocalEmbeddingFunction(model_path)
+
+    _collection = client.get_or_create_collection(
+        name=collection_name,
+        embedding_function=embedding_function,
+        metadata={"description": "Mosaic RAG knowledge base"}
+    )
+    return _collection
+
+
+def get_reranker_model():
+    """Get or load the reranker model."""
+    global _reranker_model
+    if _reranker_model is not None:
+        return _reranker_model
+    
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    
+    # Check if reranker is enabled
+    if not rag_cfg.get("use_reranker", False):
+        return None
+    
+    reranker_model_path = rag_cfg.get("reranker_model", "rag-models/bge-reranker-base")
+    
+    # Resolve reranker model path (relative to project root)
+    model_path = Path(__file__).resolve().parents[1] / reranker_model_path
+    
+    if not model_path.exists():
+        print(f"Warning: Reranker model not found at: {model_path}")
+        print(f"Reranking will be disabled")
+        return None
+    
+    try:
+        from sentence_transformers import CrossEncoder
+        import torch
+
+        # Allow configuring reranker device in config.yaml under rag.reranker_device
+        # Default to 'cpu' to avoid competing with the LLM model for GPU resources.
+        device_pref = rag_cfg.get("reranker_device", "cpu")
+        if isinstance(device_pref, str):
+            device_pref = device_pref.lower()
+
+        # Force CPU by default to avoid GPU usage on machines without CUDA.
+        # Respecting config: if someone explicitly sets 'reranker_device' to 'cuda'
+        # and CUDA is available, it could be enabled — but for this workspace
+        # we're forcing CPU to match the user's request.
+        device = 'cpu'
+        if isinstance(device_pref, str) and device_pref.lower() == 'cuda':
+            # User explicitly requested cuda; try to honor it if available.
+            if torch.cuda.is_available():
+                device = 'cuda'
+            else:
+                print("Requested reranker device 'cuda' not available; running on 'cpu' instead")
+
+        print(f"Loading reranker model from: {model_path} on device: {device}")
+        _reranker_model = CrossEncoder(str(model_path), device=device)
+        print(f"✓ Reranker model loaded successfully on: {device}")
+        return _reranker_model
+    except ImportError:
+        print("Warning: sentence-transformers not installed. Reranking disabled.")
+        return None
+    except Exception as e:
+        print(f"Error loading reranker model: {e}")
+        return None
+
+
+def rerank_contexts(query: str, contexts: List[Dict[str, Any]], top_k: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Rerank retrieved contexts using the BGE reranker model.
+    
+    Args:
+        query: The search query
+        contexts: List of context dicts with 'text', 'metadata', and 'distance'
+    
+    Returns:
+        Reranked and filtered list of contexts with added 'rerank_score'
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+
+    # Check if reranker is enabled
+    if not rag_cfg.get("use_reranker", False):
+        return contexts
+    
+    if not contexts:
+        return contexts
+    
+    # Get reranker model
+    reranker = get_reranker_model()
+    if reranker is None:
+        print("Reranker not available, returning original contexts")
+        return contexts
+    
+    try:
+        # Prepare query-document pairs for reranking
+        pairs = [[query, ctx['text']] for ctx in contexts]
+
+        # Get reranking scores
+        rerank_scores = reranker.predict(pairs)
+
+        # Add rerank scores to contexts
+        for ctx, score in zip(contexts, rerank_scores):
+            ctx['rerank_score'] = float(score)
+
+        # Sort by rerank score (higher is better)
+        reranked_contexts = sorted(contexts, key=lambda x: x.get('rerank_score', 0), reverse=True)
+
+        # If caller requested a top_k, use that; otherwise fall back to rag config
+        if top_k is None:
+            top_k = rag_cfg.get("reranker_top_k", None)
+
+        if top_k is not None:
+            reranked_contexts = reranked_contexts[:int(top_k)]
+
+        print(f"Reranking: {len(contexts)} → {len(reranked_contexts)} contexts")
+        for i, ctx in enumerate(reranked_contexts[:3], 1):
+            print(f"  [{i}] Rerank score: {ctx.get('rerank_score', 0):.4f}, Distance: {ctx.get('distance', 0):.4f}")
+
+        return reranked_contexts
+        
+    except Exception as e:
+        print(f"Error during reranking: {e}")
+        import traceback
+        traceback.print_exc()
+        return contexts
+
+
+def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
+    """Split text into overlapping chunks by token count."""
+    try:
+        from app.token_utils import count_tokens, encode_text, decode_tokens, get_tokenizer
+
+        # Prefer using the tokenizer's built-in overflowing tokenization if available
+        tokenizer = get_tokenizer()
+        try:
+            # Some fast tokenizers support automatic overflowing split via these kwargs
+            enc = tokenizer(
+                text,
+                truncation=True,
+                max_length=chunk_size,
+                stride=overlap,
+                return_overflowing_tokens=True,
+                add_special_tokens=False,
+            )
+
+            input_ids = enc.get("input_ids")
+            if input_ids and isinstance(input_ids[0], list):
+                chunks = []
+                for ids in input_ids:
+                    chunk_txt = tokenizer.decode(ids, skip_special_tokens=True)
+                    if chunk_txt.strip():
+                        chunks.append(chunk_txt)
+                return chunks
+        except Exception:
+            # If tokenizer doesn't support overflowing or fails, fall back
+            pass
+
+        # Fallback: tokenize in-memory and slice token ids (older approach)
+        chunks = []
+        tokens = encode_text(text)
+        total_tokens = len(tokens)
+
+        start = 0
+        while start < total_tokens:
+            end = min(start + chunk_size, total_tokens)
+            chunk_tokens = tokens[start:end]
+            chunk_text = decode_tokens(chunk_tokens)
+
+            if chunk_text.strip():
+                chunks.append(chunk_text)
+
+            start += chunk_size - overlap
+
+        return chunks
+    except Exception as e:
+        print(f"Error tokenizing text, falling back to character-based chunking: {e}")
+        # Fallback to character-based chunking
+        chunks = []
+        start = 0
+        text_len = len(text)
+        
+        while start < text_len:
+            end = start + chunk_size
+            chunk = text[start:end]
+            if chunk.strip():
+                chunks.append(chunk)
+            start += chunk_size - overlap
+        
+        return chunks
+
+
+def index_folder(folder_path: str | Path, clear_existing: bool = False) -> int:
+    """
+    Index all text files in a folder into ChromaDB.
+    Only indexes files that have changed (based on file size).
+    
+    Returns the number of chunks indexed.
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    chunk_size = rag_cfg.get("chunk_size", 750)
+    chunk_overlap = rag_cfg.get("chunk_overlap", 75)
+
+    collection = get_collection()
+    
+    # Load existing file metadata
+    file_metadata = load_file_metadata()
+    
+    if clear_existing:
+        # Clear existing documents from this folder
+        try:
+            collection.delete(where={"source_folder": str(folder_path)})
+            # Clear metadata for this folder
+            file_metadata = {k: v for k, v in file_metadata.items() if not k.startswith(str(folder_path))}
+        except Exception:
+            pass
+
+    folder = Path(folder_path)
+    if not folder.exists():
+        print(f"Warning: Folder does not exist: {folder}")
+        return 0
+
+    # Resolve folder relative to project root if not absolute
+    if not folder.is_absolute():
+        folder = (Path(__file__).resolve().parents[1] / folder).resolve()
+
+    supported_extensions = {".txt", ".md", ".py", ".js", ".ts", ".tsx", ".json", ".yaml", ".yml", ".rst"}
+    
+    documents = []
+    metadatas = []
+    ids = []
+    updated_files = 0
+    skipped_files = 0
+
+    for file_path in folder.rglob("*"):
+        if file_path.is_file() and file_path.suffix.lower() in supported_extensions:
+            file_path_str = str(file_path)
+            
+            # Check if file has changed
+            if not clear_existing and not has_file_changed(file_path, file_metadata):
+                skipped_files += 1
+                continue
+            
+            # File has changed or is new, delete old chunks for this specific file
+            try:
+                relative_path = str(file_path.relative_to(folder.parent))
+                # Delete all chunks with this source_file
+                existing_items = collection.get(where={"source_file": relative_path})
+                if existing_items and existing_items.get("ids"):
+                    collection.delete(ids=existing_items["ids"])
+                    if file_path_str in file_metadata:
+                        print(f"Reindexing changed file: {file_path.name} (removed {len(existing_items['ids'])} old chunks)")
+            except Exception as e:
+                print(f"Error deleting old chunks for {file_path.name}: {e}")
+            
+            try:
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                
+                chunks = chunk_text(content, chunk_size, chunk_overlap)
+                
+                for i, chunk in enumerate(chunks):
+                    documents.append(chunk)
+                    relative_path = str(file_path.relative_to(folder.parent))
+                    metadatas.append({
+                        "source_file": relative_path,
+                        "source_folder": str(folder_path),
+                        "chunk_index": i,
+                        "file_type": file_path.suffix
+                    })
+                    # Use consistent ID based on file path and chunk index
+                    # This ensures same file always gets same IDs for same chunks
+                    file_id = relative_path.replace("\\", "/").replace("/", "_").replace(".", "_")
+                    ids.append(f"{file_id}_chunk_{i}")
+                
+                # Update file metadata
+                file_metadata[file_path_str] = get_file_info(file_path)
+                updated_files += 1
+                
+            except Exception as e:
+                print(f"Error indexing {file_path}: {e}")
+                continue
+
+    if documents:
+        collection.add(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
+        )
+    
+    # Save updated metadata
+    save_file_metadata(file_metadata)
+    
+    print(f"Indexed {updated_files} files ({len(documents)} chunks), skipped {skipped_files} unchanged files")
+    
+    return len(documents)
+
+
+def index_all_folders(clear_existing: bool = False) -> Dict[str, int]:
+    """
+    Index all folders specified in config. Returns dict of folder -> chunk count.
+    Also cleans up deleted files from the index.
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    folders = rag_cfg.get("folders_to_index", [])
+    
+    # Load file metadata to check for deleted files
+    if not clear_existing:
+        file_metadata = load_file_metadata()
+        collection = get_collection()
+        
+        # Check for deleted files and remove their chunks
+        deleted_files = []
+        for file_path_str in list(file_metadata.keys()):
+            file_path = Path(file_path_str)
+            if not file_path.exists():
+                deleted_files.append(file_path_str)
+                # Try to delete chunks for this file
+                try:
+                    # Get the folder this file belongs to
+                    for folder in folders:
+                        folder_path = Path(folder)
+                        if not folder_path.is_absolute():
+                            folder_path = (Path(__file__).resolve().parents[1] / folder).resolve()
+                        
+                        if file_path.is_relative_to(folder_path.parent):
+                            relative_path = str(file_path.relative_to(folder_path.parent))
+                            collection.delete(where={"source_file": relative_path})
+                            print(f"Removed deleted file from index: {file_path.name}")
+                            break
+                except Exception as e:
+                    print(f"Error removing deleted file {file_path.name}: {e}")
+        
+        # Remove deleted files from metadata
+        if deleted_files:
+            for file_path_str in deleted_files:
+                del file_metadata[file_path_str]
+            save_file_metadata(file_metadata)
+            print(f"Cleaned up {len(deleted_files)} deleted files from index")
+    
+    results = {}
+    for folder in folders:
+        count = index_folder(folder, clear_existing=clear_existing)
+        results[folder] = count
+        print(f"Indexed {count} chunks from {folder}")
+    
+    return results
+
+
+def generate_rag_query(messages: List[Dict[str, str]], last_user_message: str) -> str:
+    """
+    Generate a contextual RAG query based on conversation history.
+    
+    Uses the last k messages (configured in rag.query_context_messages) to create
+    a better search query. If the last message is unrelated to previous context,
+    returns just the last message.
+    
+    Args:
+        messages: List of recent message dicts with 'role' and 'content'
+        last_user_message: The most recent user message (fallback)
+    
+    Returns:
+        A search query string optimized for RAG retrieval
+    """
+    def strip_thinking_tags(text: str) -> str:
+        """Remove <think> tags and their content from reasoning model output."""
+        import re
+        # Remove complete <think>...</think> blocks (handles multiline)
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Remove everything before </think> if only closing tag is present
+        text = re.sub(r'^.*?</think>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Remove any remaining stray tags
+        text = re.sub(r'</?think>', '', text, flags=re.IGNORECASE)
+        return text.strip()
+    
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    query_context_messages = rag_cfg.get("query_context_messages", 0)
+    
+    # If set to 0 or no conversation history, use simple query
+    if query_context_messages <= 0 or not messages or len(messages) <= 1:
+        return last_user_message
+    
+    # Get the last k messages (excluding system messages)
+    recent_messages = [
+        msg for msg in messages[-query_context_messages-1:]
+        if msg.get("role") in ["user", "assistant"]
+    ]
+    
+    # If not enough context, use simple query
+    if len(recent_messages) <= 1:
+        return last_user_message
+    
+    # Build conversation context
+    conversation_context = "\n".join([
+        f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}"
+        for msg in recent_messages[:-1]  # Exclude the last message
+    ])
+    
+    try:
+        # Get prompts from config
+        system_prompt = rag_cfg.get("query_generation_system_prompt", "")
+        user_prompt_template = rag_cfg.get("query_generation_user_prompt", "")
+        
+        # Format user prompt with conversation context
+        user_prompt = user_prompt_template.format(
+            conversation_context=conversation_context,
+            last_user_message=last_user_message
+        )
+        
+        # Use LLM to generate contextual query (single-query path)
+        llm_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        # Generate query with low temperature for consistency
+        generated_query = chat_completion(llm_messages, temperature=0.2, max_tokens=1500)
+        
+        # Strip thinking tags from reasoning models
+        generated_query = strip_thinking_tags(generated_query)
+        
+        # Clean up the query
+        generated_query = generated_query.strip().strip('"').strip("'")
+        
+        # Sanity check: if generated query is empty or too short, use original
+        if len(generated_query) < 3:
+            print(f"Generated query too short, using original: {last_user_message}")
+            return last_user_message
+        
+        print(f"RAG Query Generation:")
+        print(f"  Original: {last_user_message}")
+        print(f"  Contextual: {generated_query}")
+        
+        return generated_query
+        
+    except Exception as e:
+        print(f"Error generating contextual query: {e}")
+        # Fallback to simple query
+        return last_user_message
+
+
+def generate_rag_queries(messages: List[Dict[str, str]], last_user_message: str) -> List[str]:
+    """Generate multiple contextual RAG queries (list of strings).
+
+    This function reads `rag.query_generation_count` from config and attempts
+    to generate that many concise queries in a single LLM call. It returns a
+    list of queries (falling back to the original last_user_message if needed).
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    req_count = int(rag_cfg.get("query_generation_count", 1))
+
+    # If only one query requested, reuse existing generator
+    if req_count <= 1:
+        return [generate_rag_query(messages, last_user_message)]
+
+    # Build conversation context as before
+    query_context_messages = rag_cfg.get("query_context_messages", 0)
+    if query_context_messages <= 0 or not messages or len(messages) <= 1:
+        # Return repeated simple queries (same last message) if no context
+        return [last_user_message] * req_count
+
+    recent_messages = [
+        msg for msg in messages[-query_context_messages-1:]
+        if msg.get("role") in ["user", "assistant"]
+    ]
+
+    if len(recent_messages) <= 1:
+        return [last_user_message] * req_count
+
+    conversation_context = "\n".join([
+        f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}"
+        for msg in recent_messages[:-1]
+    ])
+
+    try:
+        system_prompt = rag_cfg.get("query_generation_system_prompt", "")
+        user_prompt_template = rag_cfg.get("query_generation_user_prompt", "")
+
+        # Encourage the model to emit exactly N queries, one per line
+        user_prompt = user_prompt_template.format(
+            conversation_context=conversation_context,
+            last_user_message=last_user_message
+        ) + f"\n\nPlease output {req_count} queries, one per line."
+
+        llm_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        # Use deterministic sampling and a small token budget; queries should be short
+        generated = chat_completion(llm_messages, temperature=0.0, top_p=0.5, max_tokens=128)
+        if not generated:
+            return [last_user_message] * req_count
+
+        # Split into lines and extract up to req_count non-empty lines
+        lines = [line.strip() for line in generated.splitlines() if line.strip()]
+        queries: List[str] = []
+        for ln in lines:
+            # If the model emits numbered lines like '1. ...', strip numbering
+            import re
+            q = re.sub(r'^\s*\d+\s*[-.)]*\s*', '', ln)
+            queries.append(q.strip())
+            if len(queries) >= req_count:
+                break
+
+        # If we didn't get enough, pad with the last user message
+        while len(queries) < req_count:
+            queries.append(last_user_message)
+
+        return queries
+    except Exception as e:
+        print(f"Error generating multiple RAG queries: {e}")
+        return [last_user_message] * req_count
+
+
+def generate_rag_query(messages: List[Dict[str, str]], last_user_message: str) -> str:
+    """
+    Generate a contextual RAG query based on conversation history.
+    
+    Uses the last k messages (configured in rag.query_context_messages) to create
+    a better search query. If the last message is unrelated to previous context,
+    returns just the last message.
+    
+    Args:
+        messages: List of recent message dicts with 'role' and 'content'
+        last_user_message: The most recent user message (fallback)
+    
+    Returns:
+        A search query string optimized for RAG retrieval
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    query_context_messages = rag_cfg.get("query_context_messages", 0)
+    
+    # If set to 0 or no conversation history, use simple query
+    if query_context_messages <= 0 or not messages or len(messages) <= 1:
+        return last_user_message
+    
+    # Get the last k messages (excluding system messages)
+    recent_messages = [
+        msg for msg in messages[-query_context_messages-1:]
+        if msg.get("role") in ["user", "assistant"]
+    ]
+    
+    # If not enough context, use simple query
+    if len(recent_messages) <= 1:
+        return last_user_message
+    
+    # Build conversation context
+    conversation_context = "\n".join([
+        f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}"
+        for msg in recent_messages[:-1]  # Exclude the last message
+    ])
+    
+    try:
+        # Get prompts from config
+        system_prompt = rag_cfg.get("query_generation_system_prompt", "")
+        user_prompt_template = rag_cfg.get("query_generation_user_prompt", "")
+        
+        # Format user prompt with conversation context
+        user_prompt = user_prompt_template.format(
+            conversation_context=conversation_context,
+            last_user_message=last_user_message
+        )
+        
+        # Use LLM to generate contextual query
+        llm_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        # Generate query with low temperature for consistency
+        generated_query = chat_completion(llm_messages, temperature=0.2, max_tokens=150)
+        
+        # Clean up the query
+        generated_query = generated_query.strip().strip('"').strip("'")
+        
+        # Sanity check: if generated query is empty or too short, use original
+        if len(generated_query) < 3:
+            print(f"Generated query too short, using original: {last_user_message}")
+            return last_user_message
+        
+        print(f"RAG Query Generation:")
+        print(f"  Original: {last_user_message}")
+        print(f"  Contextual: {generated_query}")
+        
+        return generated_query
+        
+    except Exception as e:
+        print(f"Error generating contextual query: {e}")
+        # Fallback to simple query
+        return last_user_message
+
+
+def retrieve_context(query: str, top_k: Optional[int] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Retrieve relevant context chunks for a query.
+    
+    Returns list of dicts with 'text', 'metadata', and 'distance'.
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    
+    if not rag_cfg.get("enabled", True):
+        return []
+    
+    # Step 0: determine how many to pull by distance initially
+    if top_k is None:
+        initial_top_k = int(rag_cfg.get("top_k", 3))
+    else:
+        initial_top_k = int(top_k)
+
+    collection = get_collection()
+
+    # Check if collection has any documents
+    try:
+        count = collection.count()
+        if count == 0:
+            print("Warning: RAG collection is empty. No context to retrieve.")
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+    except Exception as e:
+        print(f"Error checking collection count: {e}")
+        return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+
+    try:
+        # Debug: print the incoming query (truncate if very long)
+        try:
+            q_preview = (query[:200] + '...') if isinstance(query, str) and len(query) > 200 else query
+            print(f"RAG: running retrieve_context for query: {q_preview}")
+        except Exception:
+            pass
+        # 1) Retrieve top `initial_top_k` items by distance from the vector DB
+        results = collection.query(
+            query_texts=[query],
+            n_results=min(initial_top_k, count)
+        )
+
+        if not results:
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+
+        documents = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+        distances = results.get("distances", [])
+
+        if not documents or len(documents) == 0 or not documents[0]:
+            return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+
+        contexts: List[Dict[str, Any]] = []
+        for i, doc in enumerate(documents[0]):
+            ctx: Dict[str, Any] = {"text": doc}
+            ctx["metadata"] = (metadatas[0][i] if metadatas and len(metadatas) > 0 and len(metadatas[0]) > i else {})
+            ctx["distance"] = (distances[0][i] if distances and len(distances) > 0 and len(distances[0]) > i else 0.0)
+            contexts.append(ctx)
+
+        # Debug: list retrieved candidates with source and distance
+        try:
+            print(f"RAG: retrieved {len(contexts)} candidates (top {initial_top_k}):")
+            for c in contexts:
+                src = c.get("metadata", {}).get("source_file", "unknown")
+                idx = c.get("metadata", {}).get("chunk_index", "?")
+                dist = c.get("distance", 0)
+                print(f"  - {src} [chunk {idx}] distance={dist:.4f}")
+        except Exception:
+            pass
+
+        # 2) Apply max_distance threshold
+        max_distance = rag_cfg.get("max_distance", 1.5)
+        if max_distance != -1:
+            rejected_by_distance = [c for c in contexts if c.get("distance", 0) > float(max_distance)]
+            candidates = [c for c in contexts if c.get("distance", 0) <= float(max_distance)]
+        else:
+            rejected_by_distance = []
+            candidates = contexts
+
+        # Debug: after distance filtering
+        try:
+            print(f"RAG: {len(candidates)} candidates remain after max_distance={max_distance} (rejected {len(rejected_by_distance)})")
+            for c in candidates:
+                src = c.get("metadata", {}).get("source_file", "unknown")
+                idx = c.get("metadata", {}).get("chunk_index", "?")
+                dist = c.get("distance", 0)
+                print(f"  * {src} [chunk {idx}] distance={dist:.4f}")
+        except Exception:
+            pass
+
+        # 3) Rerank the remaining candidates and keep top `reranker_top_k`
+        use_reranker = rag_cfg.get("use_reranker", False)
+        reranker_min_score = rag_cfg.get("reranker_min_score", -1)
+        reranker_top_k = int(rag_cfg.get("reranker_top_k", initial_top_k))
+
+        final_chunks: List[Dict[str, Any]] = []
+        rejected_by_score: List[Dict[str, Any]] = []
+
+        if use_reranker and candidates:
+            # Rerank candidates; request at most `reranker_top_k` after reranking
+            ranked = rerank_contexts(query, candidates, top_k=reranker_top_k)
+
+            # Debug: show reranker scores for ranked items
+            try:
+                print(f"RAG: reranked candidates (top {reranker_top_k} requested): {len(ranked)}")
+                for c in ranked:
+                    src = c.get("metadata", {}).get("source_file", "unknown")
+                    idx = c.get("metadata", {}).get("chunk_index", "?")
+                    score = c.get("rerank_score", None)
+                    print(f"  => {src} [chunk {idx}] rerank_score={score}")
+            except Exception:
+                pass
+
+            # 4) Apply min reranker score threshold (if configured)
+            if reranker_min_score != -1:
+                kept: List[Dict[str, Any]] = []
+                for c in ranked:
+                    score = c.get("rerank_score")
+                    if score is None or float(score) >= float(reranker_min_score):
+                        kept.append(c)
+                    else:
+                        c["rejection_reason"] = "score"
+                        rejected_by_score.append(c)
+                ranked = kept
+
+            # Debug: after applying reranker_min_score
+            try:
+                print(f"RAG: {len(ranked)} remain after reranker_min_score={reranker_min_score} (rejected {len(rejected_by_score)})")
+                for c in ranked:
+                    src = c.get("metadata", {}).get("source_file", "unknown")
+                    idx = c.get("metadata", {}).get("chunk_index", "?")
+                    score = c.get("rerank_score", None)
+                    print(f"  ok: {src} [chunk {idx}] score={score}")
+            except Exception:
+                pass
+
+            # The accepted set are the top reranker results (already limited)
+            final_chunks = ranked[:reranker_top_k]
+        else:
+            # No reranker: keep up to the initial top_k from distance-filtered candidates
+            final_chunks = candidates[:initial_top_k]
+
+        # Mark rejected items with a reason where appropriate
+        for r in rejected_by_distance:
+            r["rejection_reason"] = "distance"
+
+        return {"accepted": final_chunks, "rejected_by_distance": rejected_by_distance, "rejected_by_score": rejected_by_score}
+    except Exception as e:
+        import traceback
+        print(f"Error retrieving context: {e}")
+        print(traceback.format_exc())
+        return {"accepted": [], "rejected_by_distance": [], "rejected_by_score": []}
+
+
+def format_context_for_prompt(contexts: List[Dict[str, Any]]) -> str:
+    """Format retrieved contexts into a string suitable for injection into the prompt."""
+    if not contexts:
+        return ""
+    
+    formatted = "Relevant context from knowledge base:\n\n"
+    for i, ctx in enumerate(contexts, 1):
+        source = ctx["metadata"].get("source_file", "unknown")
+        formatted += f"[{i}] Source: {source}\n{ctx['text']}\n\n"
+    
+    return formatted.strip()
