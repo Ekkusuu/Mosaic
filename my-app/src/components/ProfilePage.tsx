@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 import HexagonBackground from './HexagonBackground';
@@ -7,6 +7,10 @@ import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
 import NoteEditor from './NoteEditor';
 import NoteViewer from './NoteViewer';
+import PostDetailPopup from './PostDetailPopup';
+import type { Post } from '../types/post';
+
+const API_BASE_URL = 'http://localhost:8000';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -21,6 +25,12 @@ const ProfilePage: React.FC = () => {
     const [editingNote, setEditingNote] = useState<any>(null);
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
+    const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+    const [isPostDetailOpen, setIsPostDetailOpen] = useState(false);
+    const [userPosts, setUserPosts] = useState<Post[]>([]);
+    const [interactedPosts, setInteractedPosts] = useState<Post[]>([]);
+    const [userId, setUserId] = useState<number | null>(null);
+    const [userStats, setUserStats] = useState({ posts: 0, comments: 0 });
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -30,10 +40,101 @@ const ProfilePage: React.FC = () => {
         year: '',
         speciality: '',
         avatarUrl: null as string | null,
-        honorLevel: 3 // Default honor level
+        honorLevel: 3
     });
 
     const [editData, setEditData] = useState(profileData);
+
+    useEffect(() => {
+        fetchUserProfile();
+    }, []);
+
+    useEffect(() => {
+        if (userId) {
+            fetchUserPosts();
+            fetchInteractedPosts();
+        }
+    }, [userId]);
+
+    const fetchUserProfile = async () => {
+        try {
+            const userResponse = await fetch(`${API_BASE_URL}/users/me`, {
+                credentials: 'include'
+            });
+            if (!userResponse.ok) throw new Error('Failed to fetch user');
+            const userData = await userResponse.json();
+            setUserId(userData.id);
+
+            try {
+                const profileResponse = await fetch(`${API_BASE_URL}/profiles/me`, {
+                    credentials: 'include'
+                });
+                if (profileResponse.ok) {
+                    const profile = await profileResponse.json();
+                    const newProfile = {
+                        name: userData.name || 'User',
+                        email: userData.email,
+                        username: profile.username || 'user',
+                        bio: profile.bio || '',
+                        university: profile.university || '',
+                        year: profile.year || '',
+                        speciality: profile.specialty || '',
+                        avatarUrl: profile.avatar_url || null,
+                        honorLevel: 3
+                    };
+                    setProfileData(newProfile);
+                    setEditData(newProfile);
+                }
+            } catch (err) {
+                console.error('Profile fetch failed:', err);
+            }
+
+            try {
+                const statsResponse = await fetch(`${API_BASE_URL}/users/me/stats`, {
+                    credentials: 'include'
+                });
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    setUserStats(stats);
+                }
+            } catch (err) {
+                console.error('Stats fetch failed:', err);
+            }
+        } catch (err) {
+            console.error('User fetch failed:', err);
+        }
+    };
+
+    const fetchUserPosts = async () => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts?author_id=${userId}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch posts');
+            const posts = await response.json();
+            setUserPosts(posts);
+        } catch (err) {
+            console.error('Failed to load user posts:', err);
+        }
+    };
+
+    const fetchInteractedPosts = async () => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch posts');
+            const allPosts = await response.json();
+            const interacted = allPosts.filter((post: Post) => 
+                post.liked_by_user || post.author_id === userId
+            );
+            setInteractedPosts(interacted);
+        } catch (err) {
+            console.error('Failed to load interacted posts:', err);
+        }
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -64,10 +165,32 @@ const ProfilePage: React.FC = () => {
         setIsEditing(true);
     };
 
-    const handleSave = () => {
-        setProfileData(editData);
-        setIsEditing(false);
-        console.log('Profile updated:', editData);
+    const handleSave = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/profiles/me`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    name: editData.name,
+                    username: editData.username,
+                    year: editData.year,
+                    specialty: editData.speciality,
+                    bio: editData.bio,
+                    avatar_url: editData.avatarUrl
+                })
+            });
+            if (response.ok) {
+                setProfileData(editData);
+                setIsEditing(false);
+            } else {
+                console.error('Failed to update profile');
+            }
+        } catch (err) {
+            console.error('Error updating profile:', err);
+        }
     };
 
     const handleCancel = () => {
@@ -163,14 +286,6 @@ const ProfilePage: React.FC = () => {
         }
     ];
 
-    // Mock data for questions
-    const userQuestions = [
-        { id: 1, title: 'How do you memorize complex chemical formulas effectively?', timestamp: '2 hours ago', votes: 4, answers: 2 },
-        { id: 2, title: 'Best strategies for solving calculus optimization problems?', timestamp: '1 day ago', votes: 7, answers: 5 },
-        { id: 3, title: 'Understanding quantum mechanics - wave-particle duality?', timestamp: '3 days ago', votes: 3, answers: 1 }
-    ];
-
-    // Mock data for comments
     const userComments = [
         { id: 1, content: 'Great explanation of the photosynthesis cycle! Really helped with my bio exam.', timestamp: '5 hours ago' },
         { id: 2, content: 'The mnemonic for remembering historical dates is brilliant!', timestamp: '2 days ago' },
@@ -304,6 +419,40 @@ const ProfilePage: React.FC = () => {
                                 {profileData.bio && (
                                     <div className="profile-bio">{profileData.bio}</div>
                                 )}
+                                
+                                {(profileData.university || profileData.year || profileData.speciality) && (
+                                    <div className="academic-info">
+                                        {profileData.university && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                                                    <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                                                </svg>
+                                                <span>{profileData.university}</span>
+                                            </div>
+                                        )}
+                                        {profileData.year && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                                </svg>
+                                                <span>{profileData.year}</span>
+                                            </div>
+                                        )}
+                                        {profileData.speciality && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                                                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                                                </svg>
+                                                <span>{profileData.speciality}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="profile-stats">
                                     <button 
@@ -353,11 +502,11 @@ const ProfilePage: React.FC = () => {
                             <div className="activity-card">
                                 <div className="activity-stats">
                                     <div className="stat">
-                                        <div className="stat-value">{userQuestions.length}</div>
+                                        <div className="stat-value">{userStats.posts}</div>
                                         <div className="stat-label">questions</div>
                                     </div>
                                     <div className="stat">
-                                        <div className="stat-value">{userComments.length}</div>
+                                        <div className="stat-value">{userStats.comments}</div>
                                         <div className="stat-label">comments</div>
                                     </div>
                                     <div className="stat">
@@ -447,27 +596,34 @@ const ProfilePage: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Questions Section */}
                         <div className="content-section">
                             <div className="section-header">
                                 <h2 className="section-title">Questions</h2>
                             </div>
                             <div className="list-container">
-                                {userQuestions.map(q => (
-                                    <div 
-                                        key={q.id} 
-                                        className="list-item"
-                                        onClick={() => console.log('Question clicked:', q.title)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="item-title">{q.title}</div>
-                                        <div className="item-meta">
-                                            <span className="badge">{q.votes} votes</span>
-                                            <span className="badge">{q.answers} answers</span>
-                                            <span className="muted">{q.timestamp}</span>
+                                {userPosts.length === 0 ? (
+                                    <div className="empty-state">No questions yet</div>
+                                ) : (
+                                    userPosts.map(post => (
+                                        <div 
+                                            key={post.id} 
+                                            className="list-item"
+                                            onClick={() => {
+                                                setSelectedPostId(post.id);
+                                                setIsPostDetailOpen(true);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="item-title">{post.title}</div>
+                                            <div className="item-meta">
+                                                <span className="badge">{post.likes} likes</span>
+                                                <span className="badge">{post.comment_count} comments</span>
+                                                <span className="badge">{post.views} views</span>
+                                                <span className="muted">{new Date(post.created_at).toLocaleDateString()}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                             <button
                                 className="see-all-btn"
@@ -477,32 +633,36 @@ const ProfilePage: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Comments Section */}
+                        {/* Interacted Posts Section */}
                         <div className="content-section">
                             <div className="section-header">
-                                <h2 className="section-title">Comments</h2>
+                                <h2 className="section-title">Posts I've interacted with</h2>
                             </div>
                             <div className="list-container">
-                                {userComments.map(c => (
-                                    <div 
-                                        key={c.id} 
-                                        className="list-item"
-                                        onClick={() => console.log('Comment clicked:', c.content)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="item-body">{c.content}</div>
-                                        <div className="item-meta">
-                                            <span className="muted">{c.timestamp}</span>
+                                {interactedPosts.length === 0 ? (
+                                    <div className="empty-state">No interactions yet</div>
+                                ) : (
+                                    interactedPosts.slice(0, 5).map(post => (
+                                        <div 
+                                            key={post.id} 
+                                            className="list-item"
+                                            onClick={() => {
+                                                setSelectedPostId(post.id);
+                                                setIsPostDetailOpen(true);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="item-title">{post.title}</div>
+                                            <div className="item-meta">
+                                                {post.liked_by_user && <span className="badge liked">❤️ Liked</span>}
+                                                <span className="badge">{post.likes} likes</span>
+                                                <span className="badge">{post.comment_count} comments</span>
+                                                <span className="muted">by @{post.author_name}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
-                            <button
-                                className="see-all-btn"
-                                onClick={() => setShowCommentsPopup(true)}
-                            >
-                                See all my comments
-                            </button>
                         </div>
 
                         {/* Tags Section */}
@@ -661,13 +821,17 @@ const ProfilePage: React.FC = () => {
             />
 
             {/* Questions Popup */}
-            <QuestionPopup 
+            <QuestionPopup
                 isOpen={showQuestionsPopup}
                 onClose={() => setShowQuestionsPopup(false)}
-                questions={userQuestions}
-            />
-
-            {/* Comments Popup */}
+                questions={userPosts.map(post => ({
+                    id: post.id,
+                    title: post.title,
+                    timestamp: new Date(post.created_at).toLocaleDateString(),
+                    votes: post.likes,
+                    answers: post.comment_count
+                }))}
+            />            {/* Comments Popup */}
             <CommentsPopup 
                 isOpen={showCommentsPopup}
                 onClose={() => setShowCommentsPopup(false)}
@@ -824,6 +988,17 @@ const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <PostDetailPopup
+                isOpen={isPostDetailOpen}
+                onClose={() => {
+                    setIsPostDetailOpen(false);
+                    setSelectedPostId(null);
+                    fetchUserPosts();
+                    fetchInteractedPosts();
+                }}
+                postId={selectedPostId}
+            />
         </div>
     );
 };

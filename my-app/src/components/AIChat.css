@@ -17,36 +17,57 @@
 }
 
 .ai-messages {
-  padding: 16px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-content: flex-start;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-content: flex-start;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-border) 60%, transparent) transparent;
+}
+
+/* Custom scrollbar styling for webkit browsers */
+.ai-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ai-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ai-messages::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-border) 60%, transparent);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.ai-messages::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 .ai-message {
-  display: flex;
-  align-items: flex-start;
+    display: flex;
+    align-items: flex-start;
 }
 
 .ai-message.user {
-  justify-content: flex-end;
+    justify-content: flex-end;
 }
 
 .ai-message .bubble {
-  display: inline-block;
-  width: fit-content;
-  max-width: min(80%, 72ch);
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-panel) 85%, transparent);
-  color: var(--color-text);
-  box-shadow: 0 6px 20px var(--shadow-sm);
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+    display: inline-block;
+    width: fit-content;
+    max-width: min(80%, 72ch);
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-panel) 85%, transparent);
+    color: var(--color-text);
+    box-shadow: 0 6px 20px var(--shadow-sm);
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
 }
 
 /* Markdown content styles inside bubbles */
@@ -126,18 +147,18 @@
 }
 
 .ai-message.user .bubble {
-  background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
+    background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
 }
 
 /* Assistant stays left-sized, user aligns right but bubble sizes to content */
 
 .ai-input-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
 }
 /* removed separate RAG panel - only Sources list under messages is used */
 
@@ -176,72 +197,72 @@
 }
 
 .ai-input {
-  background: color-mix(in srgb, var(--color-panel) 85%, transparent);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  color: var(--color-text);
+    background: color-mix(in srgb, var(--color-panel) 85%, transparent);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--color-text);
 }
 
 .ai-input::placeholder {
-  color: var(--color-muted);
+    color: var(--color-muted);
 }
 
 .ai-send {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform .15s ease, box-shadow .15s ease;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-input-bg) 92%, transparent);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
 }
 
 .ai-send:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px var(--shadow-md);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px var(--shadow-md);
 }
 
 .ai-attach {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--color-panel) 85%, transparent);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  display: grid;
-  place-items: center;
-  position: relative;
-  padding: 0;
-  line-height: 0;
-  cursor: pointer;
-  transition: transform .15s ease, box-shadow .15s ease;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--color-panel) 85%, transparent);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    display: grid;
+    place-items: center;
+    position: relative;
+    padding: 0;
+    line-height: 0;
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
 }
 
 .ai-attach:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px var(--shadow-md);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px var(--shadow-md);
 }
 
 .ai-attach-count {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--color-input-focus);
-  color: var(--color-bg);
-  font-size: 11px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border);
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--color-input-focus);
+    color: var(--color-bg);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
 }
 
 .ai-attach svg {
