@@ -272,11 +272,37 @@ def upload_file(
             raise
     return db_file
 
-def _authorize_file_access(user: User, file_obj: FileModel):
-    if file_obj.visibility == "public":
-        return
+def _get_content_type(filename: str) -> str:
+    """Determine content type from file extension."""
+    ext = os.path.splitext(filename)[1].lower()
+    content_types = {
+        '.txt': 'text/plain',
+        '.md': 'text/markdown',
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.zip': 'application/zip',
+        '.json': 'application/json',
+    }
+    return content_types.get(ext, 'application/octet-stream')
+
+def _authorize_file_access(user: User, file_obj: FileModel, session: Session):
+    # Check if user owns the file
     if file_obj.owner_id == user.id:
         return
+    
+    # If file is part of a note, check note visibility
+    if file_obj.note_id:
+        from app.models import Note as NoteModel
+        note = session.get(NoteModel, file_obj.note_id)
+        if note and note.visibility == "public":
+            return
+    
     raise HTTPException(status_code=403, detail="Not authorized")
 
 @router.get("/{file_id}")
@@ -285,7 +311,7 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
     file_obj = session.get(FileModel, file_id)
     if not file_obj:
         raise HTTPException(status_code=404, detail="File not found")
-    _authorize_file_access(user, file_obj)
+    _authorize_file_access(user, file_obj, session)
     path = UPLOAD_DIR / file_obj.filepath
     if not path.exists():
         raise HTTPException(status_code=410, detail="File missing")
@@ -326,7 +352,7 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
             "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
             "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
         }
-        return Response(content=data, media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
+        return Response(content=data, media_type=_get_content_type(file_obj.filename), headers=headers)
 
     # Fallback: streaming pipeline for larger files
     def stream_pipeline():
@@ -426,4 +452,4 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
         "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
         "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
     }
-    return StreamingResponse(stream_pipeline(), media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
+    return StreamingResponse(stream_pipeline(), media_type=_get_content_type(file_obj.filename), headers=headers)

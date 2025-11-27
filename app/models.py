@@ -134,6 +134,16 @@ class Note(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     owner: Optional[User] = Relationship(back_populates="notes")
     files: List["File"] = Relationship(back_populates="note")
+    tags: List["NoteTag"] = Relationship(back_populates="note")
+
+
+# Note tags - separate table for efficient querying and many-to-many support
+class NoteTag(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    note_id: int = Field(sa_column=Column(Integer, ForeignKey("note.id"), nullable=False, index=True))
+    tag: str = Field(sa_column=Column(String(50), nullable=False, index=True))  # indexed for fast search
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    note: Optional[Note] = Relationship(back_populates="tags")
 
 # Email verification models
 class EmailVerificationRequest(SQLModel):

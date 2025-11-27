@@ -208,6 +208,7 @@ def create_note(
     subject: str = Form(""),
     visibility: str = Form("private"),
     content: str = Form(...),
+    tags: str = Form("[]"),  # JSON array of tags as string
     attachments: List[FastAPIUploadFile] = FastAPIFile(default=[]),
     request: Request = None,
     session: Session = Depends(get_session),
@@ -219,9 +220,19 @@ def create_note(
     - **subject**: Note subject/category (optional)
     - **visibility**: Note visibility - "private" or "public" (default: "private")
     - **content**: Markdown content (required) - will be saved as a file with file_type="content"
+    - **tags**: JSON array of tag strings (optional)
     - **attachments**: Optional file attachments - will be saved with file_type="attachment"
     """
     user = _current_user(request, session)
+    
+    # Parse tags from JSON string
+    import json
+    try:
+        tag_list = json.loads(tags) if tags else []
+        if not isinstance(tag_list, list):
+            tag_list = []
+    except:
+        tag_list = []
     
     # Validate visibility
     if visibility.lower() not in {"private", "public"}:
@@ -316,7 +327,21 @@ def create_note(
                 session.add(attachment_file)
                 attachment_files.append(attachment_file)
             
-            # Commit all file records
+            # Create tag records
+            from app.models import NoteTag
+            tag_records = []
+            for tag_name in tag_list:
+                tag_name = tag_name.strip()
+                if tag_name:  # Skip empty tags
+                    tag_record = NoteTag(
+                        note_id=note.id,
+                        tag=tag_name[:50],  # Limit to 50 chars
+                        created_at=datetime.utcnow()
+                    )
+                    session.add(tag_record)
+                    tag_records.append(tag_record)
+            
+            # Commit all file and tag records
             session.commit()
             
             # Refresh to get IDs
@@ -332,6 +357,7 @@ def create_note(
                 "visibility": note.visibility,
                 "content_file_id": content_file.id,
                 "attachment_ids": [af.id for af in attachment_files],
+                "tags": tag_list,
                 "created_at": note.created_at.isoformat(),
                 "updated_at": note.updated_at.isoformat(),
                 "message": "Note created successfully"
@@ -343,6 +369,106 @@ def create_note(
         except Exception as e:
             session.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to create note: {str(e)}")
+
+
+@router.get("/search")
+def search_notes(
+    request: Request,
+    session: Session = Depends(get_session),
+    q: str = "",
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Search public notes by title and tags.
+    
+    - **q**: Search query (searches in title and tags)
+    - **limit**: Maximum number of notes to return
+    - **offset**: Number of notes to skip
+    """
+    from app.models import NoteTag
+    
+    if not q or not q.strip():
+        return {"notes": [], "total": 0}
+    
+    search_term = f"%{q.strip().lower()}%"
+    
+    # Search in titles (case-insensitive)
+    title_query = select(NoteModel).where(
+        NoteModel.visibility == "public",
+        NoteModel.title.ilike(search_term)
+    )
+    
+    # Search in tags
+    tag_query = select(NoteModel).join(NoteTag).where(
+        NoteModel.visibility == "public",
+        NoteTag.tag.ilike(search_term)
+    )
+    
+    # Combine results (using union to avoid duplicates)
+    notes_from_title = session.exec(title_query).all()
+    notes_from_tags = session.exec(tag_query).all()
+    
+    # Combine and deduplicate by note ID
+    note_ids = set()
+    unique_notes = []
+    for note in list(notes_from_title) + list(notes_from_tags):
+        if note.id not in note_ids:
+            note_ids.add(note.id)
+            unique_notes.append(note)
+    
+    # Apply pagination
+    paginated_notes = unique_notes[offset:offset + limit]
+    
+    result = []
+    for note in paginated_notes:
+        # Get associated files
+        files = session.exec(
+            select(FileModel).where(FileModel.note_id == note.id)
+        ).all()
+        
+        content_file = None
+        attachments = []
+        for file in files:
+            if file.file_type == "content":
+                content_file = file
+            elif file.file_type == "attachment":
+                attachments.append({
+                    "id": file.id,
+                    "filename": file.filename,
+                    "size": file.size
+                })
+        
+        # Get tags
+        tags = session.exec(
+            select(NoteTag).where(NoteTag.note_id == note.id)
+        ).all()
+        tag_list = [tag.tag for tag in tags]
+        
+        # Get author info
+        from app.models import User, StudentProfile
+        user = session.get(User, note.user_id)
+        profile = session.exec(
+            select(StudentProfile).where(StudentProfile.user_id == note.user_id)
+        ).first()
+        
+        result.append({
+            "id": note.id,
+            "title": note.title,
+            "subject": note.subject,
+            "visibility": note.visibility,
+            "content_file_id": content_file.id if content_file else None,
+            "attachments": attachments,
+            "tags": tag_list,
+            "author": {
+                "name": profile.name if profile else user.name if user else "Unknown",
+                "username": profile.username if profile else None,
+            },
+            "created_at": note.created_at.isoformat(),
+            "updated_at": note.updated_at.isoformat(),
+        })
+    
+    return {"notes": result, "total": len(unique_notes)}
 
 
 @router.get("/")
@@ -389,6 +515,13 @@ def list_notes(
                     "size": file.size
                 })
         
+        # Get tags
+        from app.models import NoteTag
+        tags = session.exec(
+            select(NoteTag).where(NoteTag.note_id == note.id)
+        ).all()
+        tag_list = [tag.tag for tag in tags]
+        
         result.append({
             "id": note.id,
             "title": note.title,
@@ -396,6 +529,7 @@ def list_notes(
             "visibility": note.visibility,
             "content_file_id": content_file.id if content_file else None,
             "attachments": attachments,
+            "tags": tag_list,
             "created_at": note.created_at.isoformat(),
             "updated_at": note.updated_at.isoformat(),
         })
@@ -439,6 +573,13 @@ def get_note(
                 "size": file.size
             })
     
+    # Get tags
+    from app.models import NoteTag
+    tags = session.exec(
+        select(NoteTag).where(NoteTag.note_id == note.id)
+    ).all()
+    tag_list = [tag.tag for tag in tags]
+    
     return {
         "id": note.id,
         "title": note.title,
@@ -446,6 +587,7 @@ def get_note(
         "visibility": note.visibility,
         "content_file_id": content_file.id if content_file else None,
         "attachments": attachments,
+        "tags": tag_list,
         "created_at": note.created_at.isoformat(),
         "updated_at": note.updated_at.isoformat(),
     }

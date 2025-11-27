@@ -31,6 +31,7 @@ const ProfilePage: React.FC = () => {
     const [interactedPosts, setInteractedPosts] = useState<Post[]>([]);
     const [userId, setUserId] = useState<number | null>(null);
     const [userStats, setUserStats] = useState({ posts: 0, comments: 0 });
+    const [userNotes, setUserNotes] = useState<any[]>([]);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -53,6 +54,7 @@ const ProfilePage: React.FC = () => {
         if (userId) {
             fetchUserPosts();
             fetchInteractedPosts();
+            fetchUserNotes();
         }
     }, [userId]);
 
@@ -255,37 +257,6 @@ const ProfilePage: React.FC = () => {
         }
     ];
 
-    const publicNotes = [
-        {
-            id: 1,
-            title: 'Linear Algebra - Eigenvalues',
-            description: 'Comprehensive study of eigenvalues, eigenvectors, and diagonalization',
-            subject: 'Mathematics',
-            visibility: 'Public'
-        },
-        {
-            id: 2,
-            title: 'World War II - European Theater',
-            description: 'Detailed timeline and analysis of major battles and political decisions',
-            subject: 'History',
-            visibility: 'Public'
-        },
-        {
-            id: 3,
-            title: 'Thermodynamics - First Law',
-            description: 'Energy conservation principles and applications in various systems',
-            subject: 'Physics',
-            visibility: 'Public'
-        },
-        {
-            id: 4,
-            title: 'Data Structures & Algorithms',
-            description: 'Implementation and analysis of trees, graphs, and sorting algorithms',
-            subject: 'Computer Science',
-            visibility: 'Public'
-        }
-    ];
-
     const userComments = [
         { id: 1, content: 'Great explanation of the photosynthesis cycle! Really helped with my bio exam.', timestamp: '5 hours ago' },
         { id: 2, content: 'The mnemonic for remembering historical dates is brilliant!', timestamp: '2 days ago' },
@@ -327,6 +298,20 @@ const ProfilePage: React.FC = () => {
         setShowNoteEditor(true);
     };
 
+    const fetchUserNotes = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/notes/`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setUserNotes(data.notes || []);
+            }
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+        }
+    };
+
     const handleSaveNote = async (note: any) => {
         try {
             const formData = new FormData();
@@ -334,6 +319,7 @@ const ProfilePage: React.FC = () => {
             formData.append('subject', note.subject || '');
             formData.append('visibility', note.visibility.toLowerCase());
             formData.append('content', note.content);
+            formData.append('tags', JSON.stringify(note.tags || []));
 
             if (note.attachments && note.attachments.length > 0) {
                 note.attachments.forEach((file: File) => {
@@ -358,6 +344,9 @@ const ProfilePage: React.FC = () => {
             setShowNoteEditor(false);
             setEditingNote(null);
             alert('Note created successfully!');
+            
+            // Refresh notes list
+            fetchUserNotes();
         } catch (error) {
             console.error('Error saving note:', error);
             alert(`Failed to save note: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -369,50 +358,74 @@ const ProfilePage: React.FC = () => {
         setEditingNote(null);
     };
 
-    const handleViewNote = (note: any) => {
-        // Create a detailed note object for viewing
-        const detailedNote = {
-            ...note,
-            content: `<h2>Introduction</h2>
-<p>This is the content of ${note.title.toLowerCase()}. In a real application, this content would come from your backend database.</p>
-
-<h3>Key Points</h3>
-<ul>
-  <li>Important concept #1</li>
-  <li>Important concept #2</li>
-  <li>Important concept #3</li>
-</ul>
-
-<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
-
-<h3>Implementation Details</h3>
-<p>When implementing this concept, consider the following code example:</p>
-
-<pre><code>function example() {
-  const data = fetchData();
-  return data.map(item => ({
-    id: item.id,
-    name: item.name,
-    processed: true
-  }));
-}</code></pre>
-
-<p>Make sure to follow best practices for optimal results.</p>`,
-            author: {
-                name: profileData.name,
-                username: profileData.username,
-                honorLevel: profileData.honorLevel
-            },
-            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date().toISOString(),
-            views: Math.floor(Math.random() * 500) + 50,
-            likes: Math.floor(Math.random() * 50) + 5,
-            tags: note.subject ? [note.subject.toLowerCase()] : [],
-            attachments: []
-        };
-        
-        setSelectedNote(detailedNote);
-        setIsNoteViewerOpen(true);
+    const handleViewNote = async (note: any) => {
+        try {
+            console.log('Opening note:', note);
+            
+            // Fetch full note details including content
+            const response = await fetch(`${API_BASE_URL}/notes/${note.id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Note fetch failed:', response.status, errorText);
+                throw new Error(`Failed to fetch note details: ${response.status}`);
+            }
+            
+            const noteData = await response.json();
+            console.log('Note data:', noteData);
+            
+            // Fetch the content file (it's automatically decrypted/decompressed by backend)
+            let content = '';
+            if (noteData.content_file_id) {
+                console.log('Fetching content file:', noteData.content_file_id);
+                const contentResponse = await fetch(`${API_BASE_URL}/files/${noteData.content_file_id}`, {
+                    credentials: 'include'
+                });
+                
+                console.log('Content response status:', contentResponse.status);
+                
+                if (contentResponse.ok) {
+                    content = await contentResponse.text();
+                    console.log('Content loaded, length:', content.length);
+                } else {
+                    const errorText = await contentResponse.text();
+                    console.error('Content fetch failed:', errorText);
+                }
+            } else {
+                console.warn('No content_file_id found in note data');
+            }
+            
+            // Fetch attachment details
+            const attachments = noteData.attachments || [];
+            
+            const detailedNote = {
+                id: noteData.id,
+                title: noteData.title || note.title,
+                subject: noteData.subject || note.subject,
+                visibility: noteData.visibility || 'private',
+                content: content,
+                author: {
+                    name: profileData.name,
+                    username: profileData.username,
+                    honorLevel: profileData.honorLevel
+                },
+                createdAt: noteData.created_at,
+                updatedAt: noteData.updated_at,
+                views: 0, // TODO: Implement view tracking
+                likes: 0, // TODO: Implement like tracking
+                tags: noteData.tags || [],
+                attachments: attachments
+            };
+            
+            console.log('Opening note viewer with:', detailedNote);
+            setSelectedNote(detailedNote);
+            setIsNoteViewerOpen(true);
+        } catch (error) {
+            console.error('Error viewing note:', error);
+            alert(`Failed to load note content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     };
 
     const closeNoteViewer = () => {
@@ -540,7 +553,7 @@ const ProfilePage: React.FC = () => {
                                         <div className="stat-label">comments</div>
                                     </div>
                                     <div className="stat">
-                                        <div className="stat-value">{publicNotes.length}</div>
+                                        <div className="stat-value">{userNotes.length}</div>
                                         <div className="stat-label">notes</div>
                                     </div>
                                 </div>
@@ -578,7 +591,7 @@ const ProfilePage: React.FC = () => {
                                 </button>
                             </div>
                             <div className="notes-grid">
-                                {publicNotes.map(note => (
+                                {userNotes.map(note => (
                                     <div 
                                         key={note.id} 
                                         className="note-card"
@@ -607,12 +620,19 @@ const ProfilePage: React.FC = () => {
                                             </div>
                                         </div>
                                         <p className="note-description">
-                                            {note.description}
+                                            {note.subject || 'No subject'}
                                         </p>
                                         <div className="note-meta">
-                                            <div className="note-subject">
-                                                <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
-                                                <span>{note.subject}</span>
+                                            {note.subject && (
+                                                <div className="note-subject">
+                                                    <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
+                                                    <span>{note.subject}</span>
+                                                </div>
+                                            )}
+                                            <div className="note-visibility-badge">
+                                                <span className={`visibility-indicator ${note.visibility}`}>
+                                                    {note.visibility}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -845,7 +865,7 @@ const ProfilePage: React.FC = () => {
             <NotesPopup 
                 isOpen={showNotesPopup}
                 onClose={() => setShowNotesPopup(false)}
-                notes={publicNotes}
+                notes={userNotes}
                 onEditNote={handleEditNote}
                 onViewNote={handleViewNote}
             />

@@ -8,6 +8,7 @@ import NoteViewer from './NoteViewer';
 import SettingsPopup from './SettingsPopup';
 import CreatePostPopup from './CreatePostPopup';
 import PostDetailPopup from './PostDetailPopup';
+import SearchResults from './SearchResults';
 import type { Post } from '../types/post';
 
 // Navbar Component
@@ -136,6 +137,9 @@ const MainPage: React.FC = () => {
     const [selectedNote, setSelectedNote] = useState<any | null>(null);
     const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isSearchResultsOpen, setIsSearchResultsOpen] = useState(false);
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     const openNav = () => setIsNavOpen(true);
     const closeNav = () => setIsNavOpen(false);
@@ -197,6 +201,82 @@ const MainPage: React.FC = () => {
     const closeNoteViewer = () => {
         setIsNoteViewerOpen(false);
         setSelectedNote(null);
+    };
+
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!searchQuery.trim()) return;
+        
+        setIsSearching(true);
+        setIsSearchResultsOpen(true);
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/notes/search?q=${encodeURIComponent(searchQuery)}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Search failed');
+            }
+            
+            const data = await response.json();
+            setSearchResults(data.notes || []);
+        } catch (error) {
+            console.error('Search error:', error);
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleSearchNoteClick = async (note: any) => {
+        try {
+            // Fetch full note details including content
+            const response = await fetch(`${API_BASE_URL}/notes/${note.id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch note details');
+            }
+            
+            const noteData = await response.json();
+            
+            // Fetch the content file
+            let content = '';
+            if (noteData.content_file_id) {
+                const contentResponse = await fetch(`${API_BASE_URL}/files/${noteData.content_file_id}`, {
+                    credentials: 'include'
+                });
+                
+                if (contentResponse.ok) {
+                    content = await contentResponse.text();
+                }
+            }
+            
+            const detailedNote = {
+                id: noteData.id,
+                title: noteData.title,
+                subject: noteData.subject,
+                visibility: noteData.visibility,
+                content: content,
+                author: note.author,
+                createdAt: noteData.created_at,
+                updatedAt: noteData.updated_at,
+                views: 0,
+                likes: 0,
+                tags: noteData.tags || [],
+                attachments: noteData.attachments || []
+            };
+            
+            setIsSearchResultsOpen(false);
+            setSelectedNote(detailedNote);
+            setIsNoteViewerOpen(true);
+        } catch (error) {
+            console.error('Error viewing note:', error);
+            alert('Failed to load note');
+        }
     };
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -290,7 +370,7 @@ const MainPage: React.FC = () => {
                         className="search-bar"
                         role="search"
                         aria-label="Search posts and notes"
-                        onSubmit={(e) => { e.preventDefault(); setActiveTab('posts'); }}
+                        onSubmit={handleSearch}
                     >
             <span className="search-icon" aria-hidden>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -505,6 +585,15 @@ const MainPage: React.FC = () => {
                     fetchPosts();
                 }}
                 postId={selectedPostId}
+            />
+
+            <SearchResults
+                isOpen={isSearchResultsOpen}
+                onClose={() => setIsSearchResultsOpen(false)}
+                searchQuery={searchQuery}
+                results={searchResults}
+                isLoading={isSearching}
+                onNoteClick={handleSearchNoteClick}
             />
         </div>
     );
