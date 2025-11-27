@@ -20,6 +20,126 @@ _reranker_model = None
 # File tracking metadata
 _file_metadata_path: Optional[Path] = None
 
+# Encryption setup (shared with files.py logic)
+ENCRYPTION_KEY_HEX = os.getenv("FILE_ENCRYPTION_KEY")
+ENABLE_ENCRYPTION = bool(ENCRYPTION_KEY_HEX)
+if ENABLE_ENCRYPTION:
+    try:
+        _raw_key = bytes.fromhex(ENCRYPTION_KEY_HEX)
+        if len(_raw_key) != 32:
+            raise ValueError("Encryption key must be 32 bytes (64 hex chars)")
+        AES_GCM = AESGCM(_raw_key)
+    except Exception as e:
+        print(f"Warning: Invalid FILE_ENCRYPTION_KEY for RAG indexing: {e}")
+        AES_GCM = None
+else:
+    AES_GCM = None
+
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads")).resolve()
+
+
+def decrypt_file_data(file_path: Path, nonce_hex: Optional[str]) -> bytes:
+    """
+    Decrypt file data if encryption is enabled.
+    Returns the plaintext/compressed bytes.
+    """
+    if not ENABLE_ENCRYPTION or not AES_GCM:
+        # No encryption, just read raw
+        with open(file_path, 'rb') as f:
+            return f.read()
+    
+    with open(file_path, 'rb') as f:
+        # Layout: nonce(12) + ciphertext
+        nonce = f.read(12)
+        if len(nonce) != 12:
+            raise ValueError("Corrupt encrypted file")
+        ciphertext = f.read()
+        try:
+            plaintext = AES_GCM.decrypt(nonce, ciphertext, None)
+            return plaintext
+        except Exception as e:
+            raise ValueError(f"Unable to decrypt file: {e}")
+
+
+def decompress_file_data(data: bytes, is_compressed: bool) -> bytes:
+    """
+    Decompress file data if it's compressed.
+    Returns the raw uncompressed bytes.
+    """
+    if not is_compressed:
+        return data
+    
+    # Check for Zstd magic
+    zstd_magic = b"\x28\xB5\x2F\xFD"
+    if not data.startswith(zstd_magic):
+        # Not compressed despite flag, return as-is
+        return data
+    
+    try:
+        dctx = zstd.ZstdDecompressor()
+        return dctx.decompress(data)
+    except Exception as e:
+        print(f"Warning: Failed to decompress data: {e}")
+        return data
+
+
+def extract_text_from_pdf(pdf_data: bytes) -> str:
+    """
+    Extract text content from a PDF file.
+    Returns the extracted text or empty string if extraction fails.
+    """
+    try:
+        import pypdf
+        pdf_file = io.BytesIO(pdf_data)
+        reader = pypdf.PdfReader(pdf_file)
+        text_parts = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                text_parts.append(text)
+        return "\n\n".join(text_parts)
+    except ImportError:
+        print("Warning: pypdf not installed. Cannot extract PDF text. Install with: pip install pypdf")
+        return ""
+    except Exception as e:
+        print(f"Warning: Failed to extract text from PDF: {e}")
+        return ""
+
+
+def read_file_content(file_path: Path, is_compressed: bool, is_encrypted: bool, nonce_hex: Optional[str], file_extension: str) -> str:
+    """
+    Read and decode file content, handling encryption, compression, and different file types.
+    Returns the text content of the file.
+    """
+    # Decrypt if needed
+    if is_encrypted:
+        data = decrypt_file_data(file_path, nonce_hex)
+    else:
+        with open(file_path, 'rb') as f:
+            data = f.read()
+    
+    # Decompress if needed
+    data = decompress_file_data(data, is_compressed)
+    
+    # Handle PDF files
+    if file_extension.lower() == '.pdf':
+        return extract_text_from_pdf(data)
+    
+    # Handle text files
+    text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.tsx', '.json', '.yaml', '.yml', '.rst', '.html', '.css', '.xml'}
+    if file_extension.lower() in text_extensions:
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                return data.decode('latin-1')
+            except Exception as e:
+                print(f"Warning: Failed to decode text file: {e}")
+                return ""
+    
+    # Unsupported file type
+    return ""
+
 
 def get_file_metadata_path() -> Path:
     """Get the path to the file metadata tracking JSON."""
@@ -944,3 +1064,259 @@ def format_context_for_prompt(contexts: List[Dict[str, Any]]) -> str:
         formatted += f"[{i}] Source: {source}\n{ctx['text']}\n\n"
     
     return formatted.strip()
+
+
+def index_note(note_id: int, note_title: str, owner_id: int, content_file_path: Optional[Path] = None,
+               content_file_encrypted: bool = False, content_file_compressed: bool = False,
+               content_file_nonce_hex: Optional[str] = None,
+               attachment_files: Optional[List[Dict[str, Any]]] = None) -> int:
+    """
+    Index a single note and its attachments into ChromaDB.
+    
+    Args:
+        note_id: ID of the note
+        note_title: Title of the note
+        owner_id: ID of the note owner
+        content_file_path: Path to the content .md file
+        content_file_encrypted: Whether content file is encrypted
+        content_file_compressed: Whether content file is compressed
+        content_file_nonce_hex: Encryption nonce for content file
+        attachment_files: List of dicts with keys: path, extension, encrypted, compressed, nonce_hex, filename
+    
+    Returns:
+        Number of chunks indexed
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    chunk_size = rag_cfg.get("chunk_size", 750)
+    chunk_overlap = rag_cfg.get("chunk_overlap", 75)
+    
+    collection = get_collection()
+    
+    # Remove existing chunks for this note
+    try:
+        existing = collection.get(where={"note_id": note_id})
+        if existing and existing['ids']:
+            collection.delete(ids=existing['ids'])
+            print(f"Removed {len(existing['ids'])} existing chunks for note {note_id}")
+    except Exception as e:
+        print(f"Warning: Failed to remove existing chunks for note {note_id}: {e}")
+    
+    documents = []
+    metadatas = []
+    ids = []
+    
+    # Index content file (.md)
+    if content_file_path and content_file_path.exists():
+        try:
+            content = read_file_content(
+                content_file_path,
+                content_file_compressed,
+                content_file_encrypted,
+                content_file_nonce_hex,
+                '.md'
+            )
+            
+            if content.strip():
+                chunks = chunk_text(content, chunk_size, chunk_overlap)
+                for i, chunk in enumerate(chunks):
+                    chunk_id = f"note_{note_id}_content_chunk_{i}"
+                    documents.append(chunk)
+                    metadatas.append({
+                        "source_type": "note_content",
+                        "note_id": note_id,
+                        "owner_id": owner_id,
+                        "note_title": note_title,
+                        "source_file": str(content_file_path.name),
+                        "chunk_index": i
+                    })
+                    ids.append(chunk_id)
+                print(f"Indexed note content: {len(chunks)} chunks from {content_file_path.name}")
+        except Exception as e:
+            print(f"Error indexing content file {content_file_path}: {e}")
+    
+    # Index attachments (only text-based and PDFs)
+    if attachment_files:
+        for att in attachment_files:
+            att_path = att.get('path')
+            att_ext = att.get('extension', '').lower()
+            att_filename = att.get('filename', 'unknown')
+            
+            # Skip non-text files (images, etc.)
+            indexable_extensions = {'.txt', '.md', '.pdf', '.py', '.js', '.ts', '.tsx', '.json', '.yaml', '.yml', '.rst', '.html', '.css', '.xml'}
+            if att_ext not in indexable_extensions:
+                continue
+            
+            if not att_path or not att_path.exists():
+                continue
+            
+            try:
+                att_content = read_file_content(
+                    att_path,
+                    att.get('compressed', False),
+                    att.get('encrypted', False),
+                    att.get('nonce_hex'),
+                    att_ext
+                )
+                
+                if att_content.strip():
+                    chunks = chunk_text(att_content, chunk_size, chunk_overlap)
+                    for i, chunk in enumerate(chunks):
+                        chunk_id = f"note_{note_id}_attachment_{att_filename}_{i}"
+                        documents.append(chunk)
+                        metadatas.append({
+                            "source_type": "note_attachment",
+                            "note_id": note_id,
+                            "owner_id": owner_id,
+                            "note_title": note_title,
+                            "source_file": att_filename,
+                            "chunk_index": i
+                        })
+                        ids.append(chunk_id)
+                    print(f"Indexed attachment: {len(chunks)} chunks from {att_filename}")
+            except Exception as e:
+                print(f"Error indexing attachment {att_filename}: {e}")
+    
+    # Add all chunks to collection
+    if documents:
+        try:
+            collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            print(f"Successfully indexed note {note_id}: {len(documents)} total chunks")
+        except Exception as e:
+            print(f"Error adding chunks to collection for note {note_id}: {e}")
+            return 0
+    
+    return len(documents)
+
+
+def index_note_from_content(note_id: int, note_title: str, owner_id: int,
+                            content_text: str, attachments: Optional[List[Dict[str, Any]]] = None) -> int:
+    """
+    Index a note directly from plain text content (before encryption/compression).
+    This is more efficient as it doesn't require decryption.
+    
+    Args:
+        note_id: ID of the note
+        note_title: Title of the note
+        owner_id: ID of the note owner
+        content_text: Plain text content of the note
+        attachments: List of dicts with keys: content (plain text), filename, extension
+    
+    Returns:
+        Number of chunks indexed
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    chunk_size = rag_cfg.get("chunk_size", 750)
+    chunk_overlap = rag_cfg.get("chunk_overlap", 75)
+    
+    collection = get_collection()
+    
+    # Remove existing chunks for this note
+    try:
+        existing = collection.get(where={"note_id": note_id})
+        if existing and existing['ids']:
+            collection.delete(ids=existing['ids'])
+            print(f"Removed {len(existing['ids'])} existing chunks for note {note_id}")
+    except Exception as e:
+        print(f"Warning: Failed to remove existing chunks for note {note_id}: {e}")
+    
+    documents = []
+    metadatas = []
+    ids = []
+    
+    # Index main content
+    if content_text and content_text.strip():
+        try:
+            chunks = chunk_text(content_text, chunk_size, chunk_overlap)
+            for i, chunk in enumerate(chunks):
+                chunk_id = f"note_{note_id}_content_chunk_{i}"
+                documents.append(chunk)
+                metadatas.append({
+                    "source_type": "note_content",
+                    "note_id": note_id,
+                    "owner_id": owner_id,
+                    "note_title": note_title,
+                    "source_file": f"{note_title}.md",
+                    "chunk_index": i
+                })
+                ids.append(chunk_id)
+            print(f"Indexed note content: {len(chunks)} chunks")
+        except Exception as e:
+            print(f"Error indexing content: {e}")
+    
+    # Index attachments if provided
+    if attachments:
+        for att in attachments:
+            att_content = att.get('content')
+            att_filename = att.get('filename', 'unknown')
+            att_ext = att.get('extension', '').lower()
+            
+            # Skip non-text files
+            indexable_extensions = {'.txt', '.md', '.pdf', '.py', '.js', '.ts', '.tsx', '.json', '.yaml', '.yml', '.rst', '.html', '.css', '.xml'}
+            if att_ext not in indexable_extensions:
+                continue
+            
+            if not att_content or not att_content.strip():
+                continue
+            
+            try:
+                chunks = chunk_text(att_content, chunk_size, chunk_overlap)
+                for i, chunk in enumerate(chunks):
+                    chunk_id = f"note_{note_id}_attachment_{att_filename}_{i}"
+                    documents.append(chunk)
+                    metadatas.append({
+                        "source_type": "note_attachment",
+                        "note_id": note_id,
+                        "owner_id": owner_id,
+                        "note_title": note_title,
+                        "source_file": att_filename,
+                        "chunk_index": i
+                    })
+                    ids.append(chunk_id)
+                print(f"Indexed attachment: {len(chunks)} chunks from {att_filename}")
+            except Exception as e:
+                print(f"Error indexing attachment {att_filename}: {e}")
+    
+    # Add all chunks to collection
+    if documents:
+        try:
+            collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            print(f"Successfully indexed note {note_id}: {len(documents)} total chunks")
+        except Exception as e:
+            print(f"Error adding chunks to collection for note {note_id}: {e}")
+            return 0
+    
+    return len(documents)
+
+
+def remove_note_from_index(note_id: int) -> int:
+    """
+    Remove all chunks for a note from the index.
+    
+    Args:
+        note_id: ID of the note to remove
+    
+    Returns:
+        Number of chunks removed
+    """
+    try:
+        collection = get_collection()
+        existing = collection.get(where={"note_id": note_id})
+        if existing and existing['ids']:
+            collection.delete(ids=existing['ids'])
+            count = len(existing['ids'])
+            print(f"Removed {count} chunks for note {note_id}")
+            return count
+        return 0
+    except Exception as e:
+        print(f"Error removing note {note_id} from index: {e}")
+        return 0

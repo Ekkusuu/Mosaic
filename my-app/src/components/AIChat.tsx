@@ -111,9 +111,44 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
               <div className="ai-references" aria-live="polite">
                 <div className="ai-references-title">Sources</div>
                 <ul className="ai-references-list">
-                  {pulledChunks.map((c, i) => (
-                    <li key={i} className="ai-reference-item">{c.source || 'unknown'}</li>
-                  ))}
+                  {pulledChunks.map((c, i) => {
+                    const handleSourceClick = async () => {
+                      if (c.note_id) {
+                        try {
+                          // Fetch the full note details from the API
+                          const res = await fetch(`${API_BASE}/notes/${c.note_id}`, {
+                            credentials: 'include',
+                          });
+                          if (!res.ok) throw new Error('Failed to fetch note');
+                          const noteData = await res.json();
+                          
+                          // Dispatch a custom event to open the note viewer
+                          // MainPage will listen for this event
+                          window.dispatchEvent(new CustomEvent('openNote', { 
+                            detail: { note: noteData } 
+                          }));
+                        } catch (err) {
+                          console.error('Error opening note:', err);
+                        }
+                      }
+                    };
+                    
+                    return (
+                      <li key={i} className="ai-reference-item">
+                        {c.note_id ? (
+                          <button 
+                            className="ai-reference-link"
+                            onClick={handleSourceClick}
+                            title={`Open note: ${c.note_title || 'Untitled'}`}
+                          >
+                            {c.source || 'unknown'}
+                          </button>
+                        ) : (
+                          <span>{c.source || 'unknown'}</span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

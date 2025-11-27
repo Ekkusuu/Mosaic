@@ -311,6 +311,51 @@ const MainPage: React.FC = () => {
         return () => clearInterval(interval);
     }, [fetchPosts]);
 
+    // Listen for custom event from AIChat to open notes
+    useEffect(() => {
+        const handleOpenNote = async (event: CustomEvent) => {
+            const noteData = event.detail?.note;
+            if (noteData) {
+                try {
+                    // Fetch the content file if available
+                    let content = '';
+                    if (noteData.content_file_id) {
+                        const contentResponse = await fetch(`${API_BASE_URL}/files/${noteData.content_file_id}`, {
+                            credentials: 'include'
+                        });
+                        
+                        if (contentResponse.ok) {
+                            content = await contentResponse.text();
+                        }
+                    }
+                    
+                    const detailedNote = {
+                        id: noteData.id,
+                        title: noteData.title,
+                        content: content,
+                        subject: noteData.subject || 'General',
+                        visibility: noteData.visibility,
+                        author: noteData.author || { name: 'Unknown', username: 'unknown' },
+                        createdAt: noteData.created_at,
+                        updatedAt: noteData.updated_at,
+                        tags: noteData.tags || [],
+                        attachments: noteData.attachments || []
+                    };
+                    
+                    setSelectedNote(detailedNote);
+                    setIsNoteViewerOpen(true);
+                } catch (error) {
+                    console.error('Error opening note from AI chat:', error);
+                }
+            }
+        };
+        
+        window.addEventListener('openNote', handleOpenNote as EventListener);
+        return () => {
+            window.removeEventListener('openNote', handleOpenNote as EventListener);
+        };
+    }, []);
+
     const filteredPosts = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {

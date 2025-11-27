@@ -196,6 +196,27 @@
   color: var(--color-text);
 }
 
+.ai-reference-link {
+  background: none;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+}
+
+.ai-reference-link:hover {
+  color: var(--color-input-focus);
+  text-decoration: underline;
+}
+
+.ai-reference-link:active {
+  transform: translateY(1px);
+}
+
 .ai-input {
     background: color-mix(in srgb, var(--color-panel) 85%, transparent);
     border: 1px solid var(--color-border);

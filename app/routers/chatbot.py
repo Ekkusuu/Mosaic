@@ -78,11 +78,57 @@ def chat(req: ChatRequest):
                     contexts = results
 
                 # Create a contexts payload for the client (source names + text)
+                # Fetch usernames for note owners to display "Username/Note_Title"
+                from sqlmodel import Session, select
+                from app.db import get_session
+                from app.models import User, StudentProfile
+                
                 contexts_for_client = []
+                owner_cache = {}  # Cache to avoid repeated DB queries
+                
                 for ctx in contexts:
+                    metadata = ctx.get("metadata", {})
+                    note_id = metadata.get("note_id")
+                    owner_id = metadata.get("owner_id")
+                    note_title = metadata.get("note_title", "Unknown Note")
+                    source_type = metadata.get("source_type", "unknown")
+                    
+                    # Fetch owner username if we have owner_id
+                    owner_display = "Unknown"
+                    if owner_id and owner_id not in owner_cache:
+                        try:
+                            # Get a session - we need to handle this properly
+                            # Since we don't have request/session injected here, we'll create one
+                            from app.db import engine
+                            with Session(engine) as session:
+                                # Try to get profile first for username
+                                profile = session.exec(
+                                    select(StudentProfile).where(StudentProfile.user_id == owner_id)
+                                ).first()
+                                if profile and profile.username:
+                                    owner_cache[owner_id] = profile.username
+                                elif profile and profile.name:
+                                    owner_cache[owner_id] = profile.name
+                                else:
+                                    # Fallback to User.name
+                                    user = session.get(User, owner_id)
+                                    owner_cache[owner_id] = user.name if user else "Unknown"
+                        except Exception as e:
+                            print(f"Error fetching owner info: {e}")
+                            owner_cache[owner_id] = "Unknown"
+                    
+                    if owner_id:
+                        owner_display = owner_cache.get(owner_id, "Unknown")
+                    
+                    # Format source as "Username/Note_Title"
+                    source_display = f"{owner_display}/{note_title}" if note_id else metadata.get("source_file", "unknown")
+                    
                     contexts_for_client.append({
-                        "source": ctx.get("metadata", {}).get("source_file", "unknown"),
-                        "text": ctx.get("text", "")
+                        "source": source_display,
+                        "text": ctx.get("text", ""),
+                        "note_id": note_id,
+                        "owner_id": owner_id,
+                        "note_title": note_title
                     })
 
                 # Format the contexts for injection into the system prompt, but omit source names.

@@ -350,6 +350,25 @@ def create_note(
             for af in attachment_files:
                 session.refresh(af)
             
+            # Index note if it's public (before encryption, using plain content)
+            if visibility == "public":
+                try:
+                    from app.rag_engine import index_note_from_content
+                    
+                    # We already have the plain content in memory, no need to decrypt
+                    # Just pass it directly for indexing
+                    index_note_from_content(
+                        note_id=note.id,
+                        note_title=note.title,
+                        owner_id=user.id,
+                        content_text=content,
+                        attachments=[]  # Attachments will need separate handling if needed
+                    )
+                    print(f"Successfully indexed public note {note.id} into RAG")
+                except Exception as e:
+                    # Don't fail the request if indexing fails
+                    print(f"Warning: Failed to index note {note.id}: {e}")
+            
             return {
                 "id": note.id,
                 "title": note.title,
@@ -612,6 +631,15 @@ def delete_note(
     if note.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this note")
     
+    # Remove from RAG index if it was public
+    if note.visibility == "public":
+        try:
+            from app.rag_engine import remove_note_from_index
+            remove_note_from_index(note.id)
+            print(f"Removed note {note.id} from RAG index")
+        except Exception as e:
+            print(f"Warning: Failed to remove note {note.id} from index: {e}")
+    
     # Get all associated files
     files = session.exec(
         select(FileModel).where(FileModel.note_id == note.id)
@@ -757,6 +785,62 @@ def update_note(
             
             session.commit()
             session.refresh(note)
+            
+            # Handle RAG indexing based on visibility changes
+            if note.visibility == "public":
+                # Index or re-index the note
+                try:
+                    from app.rag_engine import index_note as rag_index_note
+                    
+                    # Get content file
+                    content_file_db = session.exec(
+                        select(FileModel).where(
+                            FileModel.note_id == note.id,
+                            FileModel.file_type == "content"
+                        )
+                    ).first()
+                    
+                    # Get attachments
+                    attachments = session.exec(
+                        select(FileModel).where(
+                            FileModel.note_id == note.id,
+                            FileModel.file_type == "attachment"
+                        )
+                    ).all()
+                    
+                    attachment_info = []
+                    for att in attachments:
+                        attachment_info.append({
+                            'path': UPLOAD_DIR / att.filepath,
+                            'extension': os.path.splitext(att.filename)[1],
+                            'encrypted': att.is_encrypted,
+                            'compressed': att.is_compressed,
+                            'nonce_hex': att.encryption_nonce_hex,
+                            'filename': att.filename
+                        })
+                    
+                    if content_file_db:
+                        rag_index_note(
+                            note_id=note.id,
+                            note_title=note.title,
+                            owner_id=user.id,
+                            content_file_path=UPLOAD_DIR / content_file_db.filepath,
+                            content_file_encrypted=content_file_db.is_encrypted,
+                            content_file_compressed=content_file_db.is_compressed,
+                            content_file_nonce_hex=content_file_db.encryption_nonce_hex,
+                            attachment_files=attachment_info if attachment_info else None
+                        )
+                        print(f"Successfully indexed/updated public note {note.id} in RAG")
+                except Exception as e:
+                    print(f"Warning: Failed to index note {note.id}: {e}")
+            else:
+                # If note is now private, remove from index
+                try:
+                    from app.rag_engine import remove_note_from_index
+                    remove_note_from_index(note.id)
+                    print(f"Removed note {note.id} from RAG index (now private)")
+                except Exception as e:
+                    print(f"Warning: Failed to remove note {note.id} from index: {e}")
             
             return {
                 "id": note.id,
