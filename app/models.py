@@ -12,7 +12,7 @@ the new columns & constraints. For fresh dev databases this is fine.
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, ForeignKey, Text
 
 
 def utcnow() -> datetime:
@@ -38,6 +38,7 @@ class User(UserBase, table=True):
 
     profiles: List["StudentProfile"] = Relationship(back_populates="user")
     files: List["File"] = Relationship(back_populates="owner")
+    notes: List["Note"] = Relationship(back_populates="owner")
     verification: Optional["EmailVerification"] = Relationship(
         back_populates="user", sa_relationship_kwargs={"uselist": False}
     )
@@ -105,9 +106,10 @@ class StudentProfileRead(SQLModel):
 class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str  # original user-provided filename (not trusted for storage path)
-    filepath: str  # absolute or configured storage path
+    filepath: str  # relative path from UPLOAD_DIR (e.g., "abc123.md")
+    file_type: str = Field(default="attachment")  # attachment|content
     owner_id: int = Field(foreign_key="user.id")
-    content_type: Optional[str] = None
+    note_id: Optional[int] = Field(default=None, foreign_key="note.id")  # optional linkage to a Note
     size: Optional[int] = None  # bytes
     checksum_sha256: Optional[str] = None
     # New metadata for storage pipeline
@@ -117,9 +119,31 @@ class File(SQLModel, table=True):
     encryption_nonce_hex: Optional[str] = None
     encryption_tag_hex: Optional[str] = None
     encryption_key_id: Optional[str] = None
-    visibility: str = Field(default="private")  # private|public|unlisted
     uploaded_at: Optional[str] = None  # ISO timestamp
     owner: Optional[User] = Relationship(back_populates="files")
+    note: Optional["Note"] = Relationship(back_populates="files")
+
+# Notes (plain text). Users can attach existing files to notes via File.note_id
+class Note(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id")
+    title: Optional[str] = Field(default=None, sa_column=Column(String(200), nullable=True))
+    subject: Optional[str] = Field(default=None, sa_column=Column(String(120), nullable=True))
+    visibility: str = Field(default="private")  # private|public
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    owner: Optional[User] = Relationship(back_populates="notes")
+    files: List["File"] = Relationship(back_populates="note")
+    tags: List["NoteTag"] = Relationship(back_populates="note")
+
+
+# Note tags - separate table for efficient querying and many-to-many support
+class NoteTag(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    note_id: int = Field(sa_column=Column(Integer, ForeignKey("note.id"), nullable=False, index=True))
+    tag: str = Field(sa_column=Column(String(50), nullable=False, index=True))  # indexed for fast search
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+    note: Optional[Note] = Relationship(back_populates="tags")
 
 # Email verification models
 class EmailVerificationRequest(SQLModel):
