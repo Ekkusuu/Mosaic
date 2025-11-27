@@ -106,8 +106,8 @@ class StudentProfileRead(SQLModel):
 class File(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str  # original user-provided filename (not trusted for storage path)
-    filepath: str  # absolute or configured storage path
-    file_type: str = Field(default="attachment") #attachement|content
+    filepath: str  # relative path from UPLOAD_DIR (e.g., "abc123.md")
+    file_type: str = Field(default="attachment")  # attachment|content
     owner_id: int = Field(foreign_key="user.id")
     note_id: Optional[int] = Field(default=None, foreign_key="note.id")  # optional linkage to a Note
     size: Optional[int] = None  # bytes
