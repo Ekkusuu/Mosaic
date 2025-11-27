@@ -70,64 +70,7 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
         return date.toLocaleDateString();
     };
 
-    // Add some additional mock notes for demonstration
-    const allNotes = [
-        ...notes,
-        {
-            id: 5,
-            title: 'Calculus II - Integration Techniques',
-            description: 'Comprehensive notes on integration by parts, substitution, and partial fractions',
-            subject: 'Mathematics',
-            visibility: 'Public',
-            createdAt: '2024-01-15',
-            tags: ['calculus', 'integration', 'derivatives']
-        },
-        {
-            id: 6,
-            title: 'Organic Chemistry Mechanisms',
-            description: 'Detailed reaction mechanisms and synthesis pathways for organic compounds',
-            subject: 'Chemistry',
-            visibility: 'Private',
-            createdAt: '2024-01-10',
-            tags: ['organic', 'reactions', 'synthesis']
-        },
-        {
-            id: 7,
-            title: 'Classical Mechanics - Newton\'s Laws',
-            description: 'Problem-solving strategies and applications of Newton\'s three laws of motion',
-            subject: 'Physics',
-            visibility: 'Public',
-            createdAt: '2024-01-08',
-            tags: ['mechanics', 'newton', 'forces']
-        },
-        {
-            id: 8,
-            title: 'Microeconomics - Market Structures',
-            description: 'Analysis of perfect competition, monopolies, and oligopolies',
-            subject: 'Economics',
-            visibility: 'Public',
-            createdAt: '2024-01-05',
-            tags: ['markets', 'competition', 'supply-demand']
-        },
-        {
-            id: 9,
-            title: 'Cognitive Psychology - Memory',
-            description: 'Theories of memory formation, storage, and retrieval processes',
-            subject: 'Psychology',
-            visibility: 'Private',
-            createdAt: '2024-01-03',
-            tags: ['memory', 'cognition', 'learning']
-        },
-        {
-            id: 10,
-            title: 'Cell Biology - Mitosis & Meiosis',
-            description: 'Detailed comparison of cell division processes and their significance',
-            subject: 'Biology',
-            visibility: 'Public',
-            createdAt: '2024-01-01',
-            tags: ['cell-division', 'genetics', 'reproduction']
-        }
-    ];
+    const allNotes = notes;
 
     return (
         <div className="notes-popup-overlay" onClick={onClose}>
@@ -181,22 +124,23 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
                 <div className="notes-popup-content">
                     <div className="notes-grid-popup">
                         {allNotes.map((note) => (
-                            <div key={note.id} className="note-card-popup">
+                            <div 
+                                key={note.id} 
+                                className="note-card-popup"
+                                onClick={() => onViewNote && onViewNote(note)}
+                                style={{ cursor: 'pointer' }}
+                                title="Click to view note"
+                            >
                                 <div className="note-card-header">
                                     <div className="note-title-section">
-                                        <h3 
-                                            className="note-title-popup"
-                                            onClick={() => onViewNote && onViewNote(note)}
-                                            style={{ cursor: 'pointer' }}
-                                            title="Click to view note"
-                                        >
+                                        <h3 className="note-title-popup">
                                             {note.title}
                                         </h3>
                                         <span className={`note-visibility-popup ${note.visibility.toLowerCase()}`}>
                                             {note.visibility}
                                         </span>
                                     </div>
-                                    <div className="note-actions">
+                                    <div className="note-actions" onClick={(e) => e.stopPropagation()}>
                                         <button 
                                             className="note-action-btn" 
                                             aria-label="Edit note"
@@ -223,12 +167,7 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
                                     </div>
                                 </div>
 
-                                <p 
-                                    className="note-description-popup"
-                                    onClick={() => onViewNote && onViewNote(note)}
-                                    style={{ cursor: 'pointer' }}
-                                    title="Click to view note"
-                                >
+                                <p className="note-description-popup">
                                     {note.description}
                                 </p>
 

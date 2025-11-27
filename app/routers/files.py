@@ -36,7 +36,7 @@ from app.models import File as FileModel, User
 
 MAX_SINGLE_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_SIZE", str(25 * 1024 * 1024)))  # 25 MB default
 MAX_USER_TOTAL_BYTES = int(os.getenv("MAX_USER_STORAGE", str(200 * 1024 * 1024)))   # 200 MB per user
-ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".txt", ".md"}
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt", ".md", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".zip", ".rar", ".7z"}
 ENABLE_COMPRESSION = os.getenv("FILE_COMPRESSION", "true").lower() == "true"
 COMPRESSION_LEVEL = int(os.getenv("ZSTD_LEVEL", "6"))
 ENCRYPTION_KEY_HEX = os.getenv("FILE_ENCRYPTION_KEY")  # 64 hex chars for 32 bytes
@@ -51,7 +51,7 @@ if ENABLE_ENCRYPTION:
         raise RuntimeError(f"Invalid FILE_ENCRYPTION_KEY: {e}")
 else:
     AES_GCM = None  # type: ignore
-ALLOWED_MIME_PREFIXES = {"image/", "text/", "application/pdf"}
+ALLOWED_MIME_PREFIXES = {"image/", "text/", "application/pdf", "application/msword", "application/vnd.", "application/zip", "application/x-", "application/octet-stream"}
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads")).resolve()
 
@@ -85,7 +85,8 @@ def _user_storage_bytes(session: Session, user_id: int) -> int:
             total += f.size
         else:
             try:
-                total += os.path.getsize(f.filepath)
+                full_path = UPLOAD_DIR / f.filepath
+                total += os.path.getsize(full_path)
             except OSError:
                 pass
     return total
@@ -139,8 +140,10 @@ def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, 
                     # Capture initial bytes for content-type sniffing
                     first_chunk = chunk[:512]
                     sniff_type = _sniff_magic(first_chunk)
-                    # Skip compression for already-compressed image formats
-                    if ENABLE_COMPRESSION and not sniff_type.startswith("image/"):
+                    # Compress all files except already-compressed formats (jpeg, png, zip, etc.)
+                    skip_compression_types = ["image/jpeg", "image/png", "image/gif", "image/webp", 
+                                             "application/zip", "application/x-rar", "application/x-7z"]
+                    if ENABLE_COMPRESSION and sniff_type not in skip_compression_types:
                         should_compress = True
                     # Initialize the output sink based on decision
                     if should_compress:
@@ -246,18 +249,15 @@ def upload_file(
 
         db_file = FileModel(
         filename=original_name,
-        filepath=str(final_path),
+        filepath=stored_name,
         owner_id=user.id,
-        content_type=content_type,
         size=size,
         checksum_sha256=checksum,
         is_compressed=bool(compressed),
         is_encrypted=bool(encrypted),
         encryption_nonce_hex=(nonce.hex() if nonce else None),
         encryption_tag_hex=(tag.hex() if tag else None),
-        visibility=visibility if visibility in {"private", "public", "unlisted"} else "private",
         uploaded_at=datetime.utcnow().isoformat() + "Z",
-        # store flags & encryption metadata encoded in filename path or separate columns (simplest: extend model later if needed)
     )
         try:
             session.add(db_file)
@@ -272,11 +272,37 @@ def upload_file(
             raise
     return db_file
 
-def _authorize_file_access(user: User, file_obj: FileModel):
-    if file_obj.visibility == "public":
-        return
+def _get_content_type(filename: str) -> str:
+    """Determine content type from file extension."""
+    ext = os.path.splitext(filename)[1].lower()
+    content_types = {
+        '.txt': 'text/plain',
+        '.md': 'text/markdown',
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.zip': 'application/zip',
+        '.json': 'application/json',
+    }
+    return content_types.get(ext, 'application/octet-stream')
+
+def _authorize_file_access(user: User, file_obj: FileModel, session: Session):
+    # Check if user owns the file
     if file_obj.owner_id == user.id:
         return
+    
+    # If file is part of a note, check note visibility
+    if file_obj.note_id:
+        from app.models import Note as NoteModel
+        note = session.get(NoteModel, file_obj.note_id)
+        if note and note.visibility == "public":
+            return
+    
     raise HTTPException(status_code=403, detail="Not authorized")
 
 @router.get("/{file_id}")
@@ -285,8 +311,8 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
     file_obj = session.get(FileModel, file_id)
     if not file_obj:
         raise HTTPException(status_code=404, detail="File not found")
-    _authorize_file_access(user, file_obj)
-    path = Path(file_obj.filepath)
+    _authorize_file_access(user, file_obj, session)
+    path = UPLOAD_DIR / file_obj.filepath
     if not path.exists():
         raise HTTPException(status_code=410, detail="File missing")
 
@@ -326,7 +352,7 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
             "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
             "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
         }
-        return Response(content=data, media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
+        return Response(content=data, media_type=_get_content_type(file_obj.filename), headers=headers)
 
     # Fallback: streaming pipeline for larger files
     def stream_pipeline():
@@ -426,4 +452,4 @@ def download_file(file_id: int, request: Request, session: Session = Depends(get
         "Content-Disposition": f"attachment; filename=\"{file_obj.filename}\"",
         "X-Checksum-SHA256": file_obj.checksum_sha256 or "",
     }
-    return StreamingResponse(stream_pipeline(), media_type=file_obj.content_type or 'application/octet-stream', headers=headers)
+    return StreamingResponse(stream_pipeline(), media_type=_get_content_type(file_obj.filename), headers=headers)
