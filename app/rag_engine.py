@@ -699,6 +699,85 @@ def generate_rag_queries(messages: List[Dict[str, str]], last_user_message: str)
         return [last_user_message] * req_count
 
 
+def generate_rag_query(messages: List[Dict[str, str]], last_user_message: str) -> str:
+    """
+    Generate a contextual RAG query based on conversation history.
+    
+    Uses the last k messages (configured in rag.query_context_messages) to create
+    a better search query. If the last message is unrelated to previous context,
+    returns just the last message.
+    
+    Args:
+        messages: List of recent message dicts with 'role' and 'content'
+        last_user_message: The most recent user message (fallback)
+    
+    Returns:
+        A search query string optimized for RAG retrieval
+    """
+    config = get_config()
+    rag_cfg = config.get("rag", {})
+    query_context_messages = rag_cfg.get("query_context_messages", 0)
+    
+    # If set to 0 or no conversation history, use simple query
+    if query_context_messages <= 0 or not messages or len(messages) <= 1:
+        return last_user_message
+    
+    # Get the last k messages (excluding system messages)
+    recent_messages = [
+        msg for msg in messages[-query_context_messages-1:]
+        if msg.get("role") in ["user", "assistant"]
+    ]
+    
+    # If not enough context, use simple query
+    if len(recent_messages) <= 1:
+        return last_user_message
+    
+    # Build conversation context
+    conversation_context = "\n".join([
+        f"{'User' if msg['role'] == 'user' else 'AI'}: {msg['content']}"
+        for msg in recent_messages[:-1]  # Exclude the last message
+    ])
+    
+    try:
+        # Get prompts from config
+        system_prompt = rag_cfg.get("query_generation_system_prompt", "")
+        user_prompt_template = rag_cfg.get("query_generation_user_prompt", "")
+        
+        # Format user prompt with conversation context
+        user_prompt = user_prompt_template.format(
+            conversation_context=conversation_context,
+            last_user_message=last_user_message
+        )
+        
+        # Use LLM to generate contextual query
+        llm_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        # Generate query with low temperature for consistency
+        generated_query = chat_completion(llm_messages, temperature=0.2, max_tokens=150)
+        
+        # Clean up the query
+        generated_query = generated_query.strip().strip('"').strip("'")
+        
+        # Sanity check: if generated query is empty or too short, use original
+        if len(generated_query) < 3:
+            print(f"Generated query too short, using original: {last_user_message}")
+            return last_user_message
+        
+        print(f"RAG Query Generation:")
+        print(f"  Original: {last_user_message}")
+        print(f"  Contextual: {generated_query}")
+        
+        return generated_query
+        
+    except Exception as e:
+        print(f"Error generating contextual query: {e}")
+        # Fallback to simple query
+        return last_user_message
+
+
 def retrieve_context(query: str, top_k: Optional[int] = None) -> Dict[str, List[Dict[str, Any]]]:
     """
     Retrieve relevant context chunks for a query.

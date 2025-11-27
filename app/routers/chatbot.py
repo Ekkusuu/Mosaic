@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from huggingface_hub import InferenceClient
 from app.llama_engine import get_config
-from app.rag_engine import retrieve_context, format_context_for_prompt
+from app.rag_engine import retrieve_context, format_context_for_prompt, generate_rag_query
 
 # Expect HF_TOKEN in environment (.env loaded by db module on startup indirectly)
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -66,7 +66,11 @@ def chat(req: ChatRequest):
 
         if last_user:
             try:
-                results = retrieve_context(last_user, top_k=rag_cfg.get("top_k", None))
+                # Generate contextual query using conversation history
+                contextual_query = generate_rag_query(messages_payload, last_user)
+                
+                # Retrieve context using the generated query
+                results = retrieve_context(contextual_query, top_k=rag_cfg.get("top_k", None))
                 contexts = []
                 if isinstance(results, dict):
                     contexts = results.get("accepted") or []

@@ -39,3 +39,21 @@ rag:
   reranker_model: "rag-models/bge-reranker-base"
   reranker_top_k: 2
   reranker_min_score: 0.1
+  
+  query_generation_system_prompt: >
+    You are a query optimization assistant. Generate a concise search query based on conversation context.
+    
+    RULES:
+    1. Create a query that incorporates relevant context
+    2. Keep queries concise (max 1-2 sentences)
+    3. Focus on key concepts and search terms and keywords
+    
+    Output ONLY the search query, nothing else.
+  
+  query_generation_user_prompt: >
+    Previous conversation:
+    {conversation_context}
+    
+    Latest user message: {last_user_message}
+    
+    Generate an optimal search query for retrieving relevant documents.
