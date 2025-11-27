@@ -35,7 +35,7 @@ rag:
   persist_directory: ".chromadb"
   query_context_messages: 3
 
-  use_reranker: true
+  use_reranker: false
   reranker_model: "rag-models/bge-reranker-base"
   reranker_top_k: 2
   reranker_min_score: 0.1
