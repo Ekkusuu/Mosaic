@@ -1,6 +1,6 @@
 from sqlmodel import Session
 from sqlalchemy import text
-from app.db import engine
+from .db import engine
 
 def migrate_post_table():
     print("🔄 Starting database migration for post table...")

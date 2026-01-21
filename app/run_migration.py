@@ -29,5 +29,6 @@ def run_migration(sql_file):
 
 if __name__ == "__main__":
     import sys
+    # Default path updated to work from project root
     migration_file = sys.argv[1] if len(sys.argv) > 1 else "migrations/001_add_post_interactions.sql"
     run_migration(migration_file)

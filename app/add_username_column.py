@@ -1,6 +1,5 @@
-
 from sqlmodel import Session, text
-from app.db import engine
+from .db import engine
 
 def add_username_column():
     with Session(engine) as session:
