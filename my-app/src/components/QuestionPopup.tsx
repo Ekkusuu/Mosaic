@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './QuestionPopup.css';
 
 interface Question {
@@ -17,10 +17,27 @@ interface QuestionPopupProps {
     isOpen: boolean;
     onClose: () => void;
     questions: Question[];
+    onDeleteQuestion?: (question: Question) => Promise<void>;
 }
 
-const QuestionPopup: React.FC<QuestionPopupProps> = ({ isOpen, onClose, questions }) => {
+const QuestionPopup: React.FC<QuestionPopupProps> = ({ isOpen, onClose, questions, onDeleteQuestion }) => {
+    const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
+
     if (!isOpen) return null;
+
+    const handleDelete = async (e: React.MouseEvent, question: Question) => {
+        e.stopPropagation();
+        if (!onDeleteQuestion) return;
+        
+        if (window.confirm(`Are you sure you want to delete "${question.title}"? This action cannot be undone.`)) {
+            setDeletingQuestionId(question.id);
+            try {
+                await onDeleteQuestion(question);
+            } finally {
+                setDeletingQuestionId(null);
+            }
+        }
+    };
 
     const getStatusClass = (status: string = 'open') => {
         switch (status) {
@@ -186,12 +203,23 @@ const QuestionPopup: React.FC<QuestionPopupProps> = ({ isOpen, onClose, question
                                                 <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
                                             </svg>
                                         </button>
-                                        <button className="question-action-btn" aria-label="More options">
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
-                                                <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                                                <circle cx="8" cy="14" r="1.5" fill="currentColor"/>
-                                            </svg>
+                                        <button 
+                                            className="question-action-btn question-delete-btn" 
+                                            aria-label="Delete question"
+                                            onClick={(e) => handleDelete(e, question)}
+                                            title="Delete this question"
+                                            disabled={deletingQuestionId === question.id}
+                                        >
+                                            {deletingQuestionId === question.id ? (
+                                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="spin">
+                                                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="30" strokeLinecap="round"/>
+                                                </svg>
+                                            ) : (
+                                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                    <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            )}
                                         </button>
                                     </div>
                                 </div>

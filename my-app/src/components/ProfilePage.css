@@ -368,6 +368,26 @@
     color: var(--color-text);
 }
 
+.note-delete-btn {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--color-muted);
+}
+
+.note-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
 .note-title {
     color: var(--color-muted-2);
     font-size: 14px;
@@ -576,6 +596,10 @@
     backdrop-filter: blur(10px) saturate(120%);
     padding: 16px;
     border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .list-item:hover {
@@ -583,6 +607,37 @@
 }
 
 .list-item:last-child { border-bottom: none; }
+
+.item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-delete-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--color-muted);
+    opacity: 0;
+    flex-shrink: 0;
+}
+
+.list-item:hover .item-delete-btn {
+    opacity: 1;
+}
+
+.item-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
 
 .item-title {
     color: var(--color-text);

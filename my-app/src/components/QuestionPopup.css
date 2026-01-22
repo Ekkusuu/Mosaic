@@ -219,6 +219,27 @@
     color: var(--color-text);
 }
 
+/* Delete button specific styles */
+.question-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.question-delete-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.question-delete-btn .spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* Question Description */
 .question-description-popup {
     color: var(--color-muted);

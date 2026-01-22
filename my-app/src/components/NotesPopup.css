@@ -288,6 +288,27 @@
     color: var(--color-text);
 }
 
+/* Delete button specific styles */
+.note-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.note-delete-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.note-delete-btn .spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* Note Description */
 .note-description-popup {
     color: var(--color-muted);

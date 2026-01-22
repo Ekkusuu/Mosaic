@@ -19,12 +19,28 @@ interface NotesPopupProps {
     notes: Note[];
     onEditNote?: (note: Note) => void;
     onViewNote?: (note: Note) => void;
+    onDeleteNote?: (note: Note) => Promise<void>;
 }
 
-const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditNote, onViewNote }) => {
+const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditNote, onViewNote, onDeleteNote }) => {
     const [searchQuery, setSearchQuery] = useState('');
+    const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
     
     if (!isOpen) return null;
+
+    const handleDelete = async (e: React.MouseEvent, note: Note) => {
+        e.stopPropagation();
+        if (!onDeleteNote) return;
+        
+        if (window.confirm(`Are you sure you want to delete "${note.title}"? This action cannot be undone.`)) {
+            setDeletingNoteId(note.id);
+            try {
+                await onDeleteNote(note);
+            } finally {
+                setDeletingNoteId(null);
+            }
+        }
+    };
 
     const getSubjectDotClass = (subject: string) => {
         switch (subject.toLowerCase()) {
@@ -153,16 +169,22 @@ const NotesPopup: React.FC<NotesPopupProps> = ({ isOpen, onClose, notes, onEditN
                                             </svg>
                                         </button>
                                         <button 
-                                            className="note-action-btn" 
-                                            aria-label="More options"
-                                            onClick={() => {/* TODO: Add more options functionality for note id: ${note.id} */}}
-                                            title="More options"
+                                            className="note-action-btn note-delete-btn" 
+                                            aria-label="Delete note"
+                                            onClick={(e) => handleDelete(e, note)}
+                                            title="Delete this note"
+                                            disabled={deletingNoteId === note.id}
                                         >
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <circle cx="8" cy="2" r="1.5" fill="currentColor"/>
-                                                <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                                                <circle cx="8" cy="14" r="1.5" fill="currentColor"/>
-                                            </svg>
+                                            {deletingNoteId === note.id ? (
+                                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="spin">
+                                                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="30" strokeLinecap="round"/>
+                                                </svg>
+                                            ) : (
+                                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                                    <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
