@@ -362,6 +362,87 @@ def get_user_stats(request: Request, session: Session = Depends(get_session)):
         "comments": len(comment_count)
     }
 
+@router.get("/me/activity")
+def get_user_activity(request: Request, months: int = 12, session: Session = Depends(get_session)):
+    """
+    Get user activity data for the specified number of months.
+    Returns monthly counts of notes, comments, and questions (posts).
+    """
+    from app.models import Post, Comment, Note
+    from datetime import datetime, timezone
+    from dateutil.relativedelta import relativedelta
+    
+    user = get_user_from_token(request, session)
+    
+    # Get current month and calculate start month
+    now = datetime.now(timezone.utc)
+    current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Initialize activity data structure with all months (oldest to newest)
+    activity_by_month = {}
+    month_list = []
+    for i in range(months - 1, -1, -1):  # Reverse to get oldest first
+        month_date = current_month - relativedelta(months=i)
+        month_key = f"{month_date.year}-{month_date.month:02d}"
+        month_list.append(month_key)
+        activity_by_month[month_key] = {
+            "month": month_key,
+            "notes": 0,
+            "comments": 0,
+            "questions": 0,
+            "total": 0
+        }
+    
+    # Calculate start date for filtering
+    start_date = current_month - relativedelta(months=months)
+    
+    # Fetch and aggregate notes
+    notes = session.exec(
+        select(Note)
+        .where(Note.user_id == user.id)
+        .where(Note.created_at >= start_date)
+    ).all()
+    
+    for note in notes:
+        month_key = f"{note.created_at.year}-{note.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["notes"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Fetch and aggregate comments
+    comments = session.exec(
+        select(Comment)
+        .where(Comment.user_id == user.id)
+        .where(Comment.created_at >= start_date)
+    ).all()
+    
+    for comment in comments:
+        month_key = f"{comment.created_at.year}-{comment.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["comments"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Fetch and aggregate questions (posts)
+    posts = session.exec(
+        select(Post)
+        .where(Post.author_id == user.id)
+        .where(Post.created_at >= start_date)
+    ).all()
+    
+    for post in posts:
+        month_key = f"{post.created_at.year}-{post.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["questions"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Convert to ordered list (oldest to newest for chart display)
+    activity_list = [activity_by_month[month_key] for month_key in month_list]
+    
+    return {
+        "months": months,
+        "activity": activity_list
+    }
+
 @router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):
     return session.exec(select(User)).all()
