@@ -384,6 +384,48 @@ const ProfilePage: React.FC = () => {
         setEditingNote(null);
     };
 
+    const handleDeleteNote = async (note: any): Promise<void> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/notes/${note.id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete note: ${response.status} - ${errorText}`);
+            }
+            
+            // Refresh notes list after deletion
+            fetchUserNotes();
+        } catch (error) {
+            console.error('Error deleting note:', error);
+            alert(`Failed to delete note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw error;
+        }
+    };
+
+    const handleDeleteQuestion = async (question: any): Promise<void> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts/${question.id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete question: ${response.status} - ${errorText}`);
+            }
+            
+            // Refresh posts list after deletion
+            fetchUserPosts();
+        } catch (error) {
+            console.error('Error deleting question:', error);
+            alert(`Failed to delete question: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw error;
+        }
+    };
+
     const handleViewNote = async (note: any) => {
         try {
             console.log('Opening note:', note);
@@ -685,6 +727,22 @@ const ProfilePage: React.FC = () => {
                                                         <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
                                                     </svg>
                                                 </button>
+                                                <button 
+                                                    className="note-delete-btn" 
+                                                    onClick={async (e) => { 
+                                                        e.stopPropagation(); 
+                                                        if (window.confirm(`Are you sure you want to delete "${note.title}"? This action cannot be undone.`)) {
+                                                            await handleDeleteNote(note);
+                                                        }
+                                                    }}
+                                                    aria-label="Delete note"
+                                                    title="Delete this note"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                        <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                        <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </div>
                                         <p className="note-description">
@@ -732,13 +790,31 @@ const ProfilePage: React.FC = () => {
                                             }}
                                             style={{ cursor: 'pointer' }}
                                         >
-                                            <div className="item-title">{post.title}</div>
-                                            <div className="item-meta">
-                                                <span className="badge">{post.likes} likes</span>
-                                                <span className="badge">{post.comment_count} comments</span>
-                                                <span className="badge">{post.views} views</span>
-                                                <span className="muted">{new Date(post.created_at).toLocaleDateString()}</span>
+                                            <div className="item-content">
+                                                <div className="item-title">{post.title}</div>
+                                                <div className="item-meta">
+                                                    <span className="badge">{post.likes} likes</span>
+                                                    <span className="badge">{post.comment_count} comments</span>
+                                                    <span className="badge">{post.views} views</span>
+                                                    <span className="muted">{new Date(post.created_at).toLocaleDateString()}</span>
+                                                </div>
                                             </div>
+                                            <button 
+                                                className="item-delete-btn" 
+                                                onClick={async (e) => { 
+                                                    e.stopPropagation(); 
+                                                    if (window.confirm(`Are you sure you want to delete "${post.title}"? This action cannot be undone.`)) {
+                                                        await handleDeleteQuestion({ id: post.id, title: post.title });
+                                                    }
+                                                }}
+                                                aria-label="Delete question"
+                                                title="Delete this question"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                    <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            </button>
                                         </div>
                                     ))
                                 )}
@@ -936,6 +1012,7 @@ const ProfilePage: React.FC = () => {
                 notes={userNotes}
                 onEditNote={handleEditNote}
                 onViewNote={handleViewNote}
+                onDeleteNote={handleDeleteNote}
             />
 
             {/* Questions Popup */}
@@ -949,6 +1026,7 @@ const ProfilePage: React.FC = () => {
                     votes: post.likes,
                     answers: post.comment_count
                 }))}
+                onDeleteQuestion={handleDeleteQuestion}
             />            {/* Comments Popup */}
             <CommentsPopup 
                 isOpen={showCommentsPopup}

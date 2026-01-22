@@ -1320,3 +1320,82 @@ def remove_note_from_index(note_id: int) -> int:
     except Exception as e:
         print(f"Error removing note {note_id} from index: {e}")
         return 0
+
+
+def repair_chromadb_index() -> Dict[str, int]:
+    """
+    Repair/sync the ChromaDB index by removing orphaned chunks.
+    
+    This function checks all indexed notes in ChromaDB and removes chunks
+    for notes that no longer exist in the database. Should be called on startup.
+    
+    Returns:
+        Dict with 'orphaned_notes_removed' and 'chunks_removed' counts
+    """
+    from app.db import engine
+    from sqlmodel import Session, select
+    from app.models import Note
+    
+    result = {
+        "orphaned_notes_removed": 0,
+        "chunks_removed": 0,
+        "valid_notes": 0
+    }
+    
+    try:
+        collection = get_collection()
+        
+        # Get all unique note_ids from ChromaDB
+        all_items = collection.get(include=["metadatas"])
+        if not all_items or not all_items.get("metadatas"):
+            print("ChromaDB repair: No items in index, nothing to repair")
+            return result
+        
+        # Extract unique note_ids from metadata
+        indexed_note_ids = set()
+        for metadata in all_items["metadatas"]:
+            if metadata and "note_id" in metadata:
+                indexed_note_ids.add(metadata["note_id"])
+        
+        if not indexed_note_ids:
+            print("ChromaDB repair: No notes found in index")
+            return result
+        
+        print(f"ChromaDB repair: Found {len(indexed_note_ids)} unique notes in index")
+        
+        # Check which notes still exist in the database
+        with Session(engine) as session:
+            existing_notes = session.exec(
+                select(Note.id).where(Note.id.in_(list(indexed_note_ids)))
+            ).all()
+            existing_note_ids = set(existing_notes)
+        
+        # Find orphaned notes (in ChromaDB but not in database)
+        orphaned_note_ids = indexed_note_ids - existing_note_ids
+        
+        if not orphaned_note_ids:
+            print(f"ChromaDB repair: All {len(indexed_note_ids)} indexed notes are valid")
+            result["valid_notes"] = len(indexed_note_ids)
+            return result
+        
+        print(f"ChromaDB repair: Found {len(orphaned_note_ids)} orphaned notes to remove")
+        
+        # Remove orphaned chunks
+        for note_id in orphaned_note_ids:
+            try:
+                existing = collection.get(where={"note_id": note_id})
+                if existing and existing['ids']:
+                    collection.delete(ids=existing['ids'])
+                    result["chunks_removed"] += len(existing['ids'])
+                    result["orphaned_notes_removed"] += 1
+                    print(f"ChromaDB repair: Removed {len(existing['ids'])} chunks for orphaned note {note_id}")
+            except Exception as e:
+                print(f"ChromaDB repair: Error removing orphaned note {note_id}: {e}")
+        
+        result["valid_notes"] = len(existing_note_ids)
+        print(f"ChromaDB repair complete: Removed {result['chunks_removed']} chunks from {result['orphaned_notes_removed']} orphaned notes")
+        
+    except Exception as e:
+        print(f"ChromaDB repair error: {e}")
+    
+    return result

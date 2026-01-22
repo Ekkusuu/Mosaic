@@ -631,14 +631,14 @@ def delete_note(
     if note.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this note")
     
-    # Remove from RAG index if it was public
-    if note.visibility == "public":
-        try:
-            from app.rag_engine import remove_note_from_index
-            remove_note_from_index(note.id)
-            print(f"Removed note {note.id} from RAG index")
-        except Exception as e:
-            print(f"Warning: Failed to remove note {note.id} from index: {e}")
+    # Always remove from RAG index (in case it was ever indexed)
+    try:
+        from app.rag_engine import remove_note_from_index
+        removed_count = remove_note_from_index(note.id)
+        if removed_count > 0:
+            print(f"Removed {removed_count} chunks for note {note.id} from RAG index")
+    except Exception as e:
+        print(f"Warning: Failed to remove note {note.id} from index: {e}")
     
     # Get all associated files
     files = session.exec(
@@ -654,6 +654,14 @@ def delete_note(
         except OSError:
             pass  # Continue even if file deletion fails
         session.delete(file)
+    
+    # Delete associated tags
+    from app.models import NoteTag
+    tags = session.exec(
+        select(NoteTag).where(NoteTag.note_id == note.id)
+    ).all()
+    for tag in tags:
+        session.delete(tag)
     
     # Delete the note
     session.delete(note)

@@ -140,6 +140,17 @@ def on_startup():
     # Create tables automatically on startup (convenient for development)
     SQLModel.metadata.create_all(engine)
     ensure_email_verification_schema()
+    
+    # Repair ChromaDB index - remove orphaned chunks for deleted notes
+    try:
+        from app.rag_engine import repair_chromadb_index
+        repair_result = repair_chromadb_index()
+        if repair_result.get("orphaned_notes_removed", 0) > 0:
+            print(f"ChromaDB startup repair: Cleaned up {repair_result['orphaned_notes_removed']} orphaned notes ({repair_result['chunks_removed']} chunks)")
+        else:
+            print(f"ChromaDB startup check: Index is healthy ({repair_result.get('valid_notes', 0)} notes indexed)")
+    except Exception as e:
+        print(f"Warning: ChromaDB repair failed on startup: {e}")
 
 @app.get("/")
 def root():
