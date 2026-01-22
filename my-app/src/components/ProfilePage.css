@@ -493,14 +493,62 @@
 
 .sparkline {
     width: 100%;
-    height: 60px;
+    height: 55px;
     color: var(--color-muted-2);
+}
+
+.month-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.month-label {
+    font-size: 9px;
+    color: var(--color-muted);
+    opacity: 0.6;
+    flex-shrink: 0;
 }
 
 .sparkline-footer {
     color: var(--color-muted);
     font-size: 11px;
     margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.time-period-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.period-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-muted);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+    background: var(--color-input-bg);
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+}
+
+.period-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
 }
 
 .see-all-btn:hover {

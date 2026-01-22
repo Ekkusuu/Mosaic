@@ -32,6 +32,8 @@ const ProfilePage: React.FC = () => {
     const [userId, setUserId] = useState<number | null>(null);
     const [userStats, setUserStats] = useState({ posts: 0, comments: 0 });
     const [userNotes, setUserNotes] = useState<any[]>([]);
+    const [activityData, setActivityData] = useState<number[]>([]);
+    const [activityPeriod, setActivityPeriod] = useState<3 | 6 | 12>(12);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -55,8 +57,15 @@ const ProfilePage: React.FC = () => {
             fetchUserPosts();
             fetchInteractedPosts();
             fetchUserNotes();
+            fetchActivityData(activityPeriod);
         }
     }, [userId]);
+
+    useEffect(() => {
+        if (userId) {
+            fetchActivityData(activityPeriod);
+        }
+    }, [activityPeriod]);
 
     const fetchUserProfile = async () => {
         try {
@@ -135,6 +144,26 @@ const ProfilePage: React.FC = () => {
             setInteractedPosts(interacted);
         } catch (err) {
             console.error('Failed to load interacted posts:', err);
+        }
+    };
+
+    const fetchActivityData = async (months: 3 | 6 | 12) => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/me/activity?months=${months}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch activity data');
+            const data = await response.json();
+            console.log('Activity data received:', data);
+            // Extract total activity counts from each month
+            const activityCounts = data.activity.map((item: any) => item.total);
+            console.log('Activity counts:', activityCounts);
+            setActivityData(activityCounts);
+        } catch (err) {
+            console.error('Failed to load activity data:', err);
+            // Fallback to empty data if fetch fails
+            setActivityData(new Array(months).fill(0));
         }
     };
 
@@ -281,10 +310,7 @@ const ProfilePage: React.FC = () => {
         { id: 3, name: 'Grace Wilson', username: 'gracew', avatarUrl: null, bio: 'Data scientist and machine learning researcher' }
     ];
 
-    // Mock activity data: posts per month for the last 12 months
-    // Activity combines notes created, questions asked, comments written (mocked)
-    const activityData = [3, 5, 2, 7, 6, 4, 8, 9, 5, 10, 6, 12];
-
+    // Calculate max activity for graph scaling
     const maxActivity = Math.max(...activityData, 1);
 
     // Note editor handlers
@@ -558,19 +584,61 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="sparkline-wrap">
-                                    <svg viewBox="0 0 240 60" preserveAspectRatio="none" className="sparkline">
-                                        <polyline
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            points={activityData.map((v, i) => {
-                                                const x = (i / (activityData.length - 1)) * 240;
-                                                const y = 60 - (v / maxActivity) * 50 - 5;
-                                                return `${x},${y}`;
-                                            }).join(' ')}
-                                        />
+                                    <svg viewBox="0 0 240 55" preserveAspectRatio="none" className="sparkline">
+                                        {activityData.length > 0 && maxActivity > 0 ? (
+                                            <polyline
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                points={activityData.map((v, i) => {
+                                                    const x = activityData.length > 1 ? (i / (activityData.length - 1)) * 240 : 120;
+                                                    const normalizedValue = maxActivity > 0 ? v / maxActivity : 0;
+                                                    const y = 50 - (normalizedValue * 45);
+                                                    return `${x},${y}`;
+                                                }).join(' ')}
+                                            />
+                                        ) : (
+                                            <line x1="0" y1="50" x2="240" y2="50" stroke="currentColor" strokeWidth="1" opacity="0.3" />
+                                        )}
                                     </svg>
-                                    <div className="sparkline-footer">last 12 months</div>
+                                    <div className="month-labels">
+                                        {activityData.length > 0 && (() => {
+                                            const labels: React.ReactNode[] = [];
+                                            const now = new Date();
+                                            
+                                            for (let i = 0; i < activityPeriod; i++) {
+                                                const monthDate = new Date(now.getFullYear(), now.getMonth() - (activityPeriod - 1 - i), 1);
+                                                const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'short' });
+                                                labels.push(
+                                                    <span key={i} className="month-label">{monthLabel}</span>
+                                                );
+                                            }
+                                            return labels;
+                                        })()}
+                                    </div>
+                                    <div className="sparkline-footer">
+                                        <div className="time-period-buttons">
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 3 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(3)}
+                                            >
+                                                3M
+                                            </button>
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 6 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(6)}
+                                            >
+                                                6M
+                                            </button>
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 12 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(12)}
+                                            >
+                                                12M
+                                            </button>
+                                        </div>
+                                        <span>last {activityPeriod} months</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
