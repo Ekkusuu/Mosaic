@@ -94,6 +94,27 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-border) 60%, transparent) transparent;
+}
+
+/* Custom scrollbar styling for webkit browsers */
+.note-editor-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.note-editor-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.note-editor-content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-border) 60%, transparent);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.note-editor-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 /* Form Sections */
@@ -238,6 +259,27 @@
     min-width: 200px;
     max-height: 200px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-border) 60%, transparent) transparent;
+}
+
+/* Custom scrollbar styling for .dropdown-content webkit browsers */
+.dropdown-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.dropdown-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dropdown-content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-border) 60%, transparent);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.dropdown-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 .attachments-references-dropdown:hover .dropdown-content {
@@ -287,6 +329,27 @@
     font-size: 14px;
     line-height: 1.6;
     outline: none;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-border) 60%, transparent) transparent;
+}
+
+/* Custom scrollbar styling for .editor-content webkit browsers */
+.editor-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.editor-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.editor-content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-border) 60%, transparent);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.editor-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-border) 80%, transparent);
 }
 
 .editor-content:empty::before {
@@ -405,9 +468,9 @@
 }
 
 .editor-content .image-reference {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, #2563eb 10%, var(--color-input-bg)),
-        var(--color-input-bg)
+    background: linear-gradient(135deg,
+    color-mix(in srgb, #2563eb 10%, var(--color-input-bg)),
+    var(--color-input-bg)
     );
     border-color: color-mix(in srgb, #2563eb 20%, var(--color-border));
 }
@@ -424,9 +487,9 @@
 }
 
 .editor-content .image-reference:hover {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, #2563eb 15%, var(--color-panel)),
-        var(--color-panel)
+    background: linear-gradient(135deg,
+    color-mix(in srgb, #2563eb 15%, var(--color-panel)),
+    var(--color-panel)
     );
     border-color: color-mix(in srgb, #2563eb 30%, var(--color-input-focus));
 }
@@ -453,9 +516,9 @@
 }
 
 .editor-content .image-reference:has(input) {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, #2563eb 20%, var(--color-surface)),
-        var(--color-surface)
+    background: linear-gradient(135deg,
+    color-mix(in srgb, #2563eb 20%, var(--color-surface)),
+    var(--color-surface)
     );
 }
 
@@ -683,18 +746,18 @@
 }
 
 .save-btn {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, var(--color-input-bg) 95%, transparent),
-        color-mix(in srgb, var(--color-input-focus) 90%, transparent)
+    background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-input-bg) 95%, transparent),
+    color-mix(in srgb, var(--color-input-focus) 90%, transparent)
     );
     color: var(--color-text);
     border-color: var(--color-input-focus);
 }
 
 .save-btn:hover {
-    background: linear-gradient(135deg, 
-        color-mix(in srgb, var(--color-panel) 95%, transparent),
-        color-mix(in srgb, var(--color-input-focus) 85%, transparent)
+    background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-panel) 95%, transparent),
+    color-mix(in srgb, var(--color-input-focus) 85%, transparent)
     );
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);

@@ -123,6 +123,30 @@
     margin: 8px 0 16px 0;
 }
 
+.academic-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0 16px 0;
+    padding: 12px;
+    background: color-mix(in srgb, var(--color-surface) 50%, transparent);
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+
+.academic-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-muted-2);
+    font-size: 13px;
+}
+
+.academic-item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
 .profile-stats {
     display: flex;
     gap: 16px;
@@ -344,6 +368,26 @@
     color: var(--color-text);
 }
 
+.note-delete-btn {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--color-muted);
+}
+
+.note-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
 .note-title {
     color: var(--color-muted-2);
     font-size: 14px;
@@ -469,14 +513,62 @@
 
 .sparkline {
     width: 100%;
-    height: 60px;
+    height: 55px;
     color: var(--color-muted-2);
+}
+
+.month-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.month-label {
+    font-size: 9px;
+    color: var(--color-muted);
+    opacity: 0.6;
+    flex-shrink: 0;
 }
 
 .sparkline-footer {
     color: var(--color-muted);
     font-size: 11px;
     margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.time-period-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.period-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-muted);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+    background: var(--color-input-bg);
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+}
+
+.period-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
 }
 
 .see-all-btn:hover {
@@ -504,6 +596,10 @@
     backdrop-filter: blur(10px) saturate(120%);
     padding: 16px;
     border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .list-item:hover {
@@ -511,6 +607,37 @@
 }
 
 .list-item:last-child { border-bottom: none; }
+
+.item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-delete-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--color-muted);
+    opacity: 0;
+    flex-shrink: 0;
+}
+
+.list-item:hover .item-delete-btn {
+    opacity: 1;
+}
+
+.item-delete-btn:hover {
+    background: var(--color-danger-bg);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
 
 .item-title {
     color: var(--color-text);
@@ -538,6 +665,12 @@
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
+}
+
+.badge.liked {
+    background: color-mix(in srgb, #ff4444 15%, transparent);
+    border-color: color-mix(in srgb, #ff4444 40%, transparent);
+    color: #ff6666;
 }
 
 .muted { color: var(--color-muted); }

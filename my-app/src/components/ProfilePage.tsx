@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 import HexagonBackground from './HexagonBackground';
@@ -7,6 +7,10 @@ import QuestionPopup from './QuestionPopup';
 import CommentsPopup from './CommentsPopup';
 import NoteEditor from './NoteEditor';
 import NoteViewer from './NoteViewer';
+import PostDetailPopup from './PostDetailPopup';
+import type { Post } from '../types/post';
+
+const API_BASE_URL = 'http://localhost:8000';
 
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -21,6 +25,15 @@ const ProfilePage: React.FC = () => {
     const [editingNote, setEditingNote] = useState<any>(null);
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
+    const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+    const [isPostDetailOpen, setIsPostDetailOpen] = useState(false);
+    const [userPosts, setUserPosts] = useState<Post[]>([]);
+    const [interactedPosts, setInteractedPosts] = useState<Post[]>([]);
+    const [userId, setUserId] = useState<number | null>(null);
+    const [userStats, setUserStats] = useState({ posts: 0, comments: 0 });
+    const [userNotes, setUserNotes] = useState<any[]>([]);
+    const [activityData, setActivityData] = useState<number[]>([]);
+    const [activityPeriod, setActivityPeriod] = useState<3 | 6 | 12>(12);
     const [profileData, setProfileData] = useState({
         name: 'John Doe',
         email: 'john.doe@example.com',
@@ -30,10 +43,129 @@ const ProfilePage: React.FC = () => {
         year: '',
         speciality: '',
         avatarUrl: null as string | null,
-        honorLevel: 3 // Default honor level
+        honorLevel: 3
     });
 
     const [editData, setEditData] = useState(profileData);
+
+    useEffect(() => {
+        fetchUserProfile();
+    }, []);
+
+    useEffect(() => {
+        if (userId) {
+            fetchUserPosts();
+            fetchInteractedPosts();
+            fetchUserNotes();
+            fetchActivityData(activityPeriod);
+        }
+    }, [userId]);
+
+    useEffect(() => {
+        if (userId) {
+            fetchActivityData(activityPeriod);
+        }
+    }, [activityPeriod]);
+
+    const fetchUserProfile = async () => {
+        try {
+            const userResponse = await fetch(`${API_BASE_URL}/users/me`, {
+                credentials: 'include'
+            });
+            if (!userResponse.ok) throw new Error('Failed to fetch user');
+            const userData = await userResponse.json();
+            setUserId(userData.id);
+
+            try {
+                const profileResponse = await fetch(`${API_BASE_URL}/profiles/me`, {
+                    credentials: 'include'
+                });
+                if (profileResponse.ok) {
+                    const profile = await profileResponse.json();
+                    const newProfile = {
+                        name: userData.name || 'User',
+                        email: userData.email,
+                        username: profile.username || 'user',
+                        bio: profile.bio || '',
+                        university: profile.university || '',
+                        year: profile.year || '',
+                        speciality: profile.specialty || '',
+                        avatarUrl: profile.avatar_url || null,
+                        honorLevel: 3
+                    };
+                    setProfileData(newProfile);
+                    setEditData(newProfile);
+                }
+            } catch (err) {
+                console.error('Profile fetch failed:', err);
+            }
+
+            try {
+                const statsResponse = await fetch(`${API_BASE_URL}/users/me/stats`, {
+                    credentials: 'include'
+                });
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    setUserStats(stats);
+                }
+            } catch (err) {
+                console.error('Stats fetch failed:', err);
+            }
+        } catch (err) {
+            console.error('User fetch failed:', err);
+        }
+    };
+
+    const fetchUserPosts = async () => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts?author_id=${userId}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch posts');
+            const posts = await response.json();
+            setUserPosts(posts);
+        } catch (err) {
+            console.error('Failed to load user posts:', err);
+        }
+    };
+
+    const fetchInteractedPosts = async () => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch posts');
+            const allPosts = await response.json();
+            const interacted = allPosts.filter((post: Post) => 
+                post.liked_by_user || post.author_id === userId
+            );
+            setInteractedPosts(interacted);
+        } catch (err) {
+            console.error('Failed to load interacted posts:', err);
+        }
+    };
+
+    const fetchActivityData = async (months: 3 | 6 | 12) => {
+        if (!userId) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/users/me/activity?months=${months}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch activity data');
+            const data = await response.json();
+            console.log('Activity data received:', data);
+            // Extract total activity counts from each month
+            const activityCounts = data.activity.map((item: any) => item.total);
+            console.log('Activity counts:', activityCounts);
+            setActivityData(activityCounts);
+        } catch (err) {
+            console.error('Failed to load activity data:', err);
+            // Fallback to empty data if fetch fails
+            setActivityData(new Array(months).fill(0));
+        }
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -64,10 +196,32 @@ const ProfilePage: React.FC = () => {
         setIsEditing(true);
     };
 
-    const handleSave = () => {
-        setProfileData(editData);
-        setIsEditing(false);
-        console.log('Profile updated:', editData);
+    const handleSave = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/profiles/me`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    name: editData.name,
+                    username: editData.username,
+                    year: editData.year,
+                    specialty: editData.speciality,
+                    bio: editData.bio,
+                    avatar_url: editData.avatarUrl
+                })
+            });
+            if (response.ok) {
+                setProfileData(editData);
+                setIsEditing(false);
+            } else {
+                console.error('Failed to update profile');
+            }
+        } catch (err) {
+            console.error('Error updating profile:', err);
+        }
     };
 
     const handleCancel = () => {
@@ -132,45 +286,6 @@ const ProfilePage: React.FC = () => {
         }
     ];
 
-    const publicNotes = [
-        {
-            id: 1,
-            title: 'Linear Algebra - Eigenvalues',
-            description: 'Comprehensive study of eigenvalues, eigenvectors, and diagonalization',
-            subject: 'Mathematics',
-            visibility: 'Public'
-        },
-        {
-            id: 2,
-            title: 'World War II - European Theater',
-            description: 'Detailed timeline and analysis of major battles and political decisions',
-            subject: 'History',
-            visibility: 'Public'
-        },
-        {
-            id: 3,
-            title: 'Thermodynamics - First Law',
-            description: 'Energy conservation principles and applications in various systems',
-            subject: 'Physics',
-            visibility: 'Public'
-        },
-        {
-            id: 4,
-            title: 'Data Structures & Algorithms',
-            description: 'Implementation and analysis of trees, graphs, and sorting algorithms',
-            subject: 'Computer Science',
-            visibility: 'Public'
-        }
-    ];
-
-    // Mock data for questions
-    const userQuestions = [
-        { id: 1, title: 'How do you memorize complex chemical formulas effectively?', timestamp: '2 hours ago', votes: 4, answers: 2 },
-        { id: 2, title: 'Best strategies for solving calculus optimization problems?', timestamp: '1 day ago', votes: 7, answers: 5 },
-        { id: 3, title: 'Understanding quantum mechanics - wave-particle duality?', timestamp: '3 days ago', votes: 3, answers: 1 }
-    ];
-
-    // Mock data for comments
     const userComments = [
         { id: 1, content: 'Great explanation of the photosynthesis cycle! Really helped with my bio exam.', timestamp: '5 hours ago' },
         { id: 2, content: 'The mnemonic for remembering historical dates is brilliant!', timestamp: '2 days ago' },
@@ -195,10 +310,7 @@ const ProfilePage: React.FC = () => {
         { id: 3, name: 'Grace Wilson', username: 'gracew', avatarUrl: null, bio: 'Data scientist and machine learning researcher' }
     ];
 
-    // Mock activity data: posts per month for the last 12 months
-    // Activity combines notes created, questions asked, comments written (mocked)
-    const activityData = [3, 5, 2, 7, 6, 4, 8, 9, 5, 10, 6, 12];
-
+    // Calculate max activity for graph scaling
     const maxActivity = Math.max(...activityData, 1);
 
     // Note editor handlers
@@ -212,11 +324,59 @@ const ProfilePage: React.FC = () => {
         setShowNoteEditor(true);
     };
 
-    const handleSaveNote = (note: any) => {
-        // TODO: Implement note saving logic (API call)
-        console.log('Saving note:', note);
-        setShowNoteEditor(false);
-        setEditingNote(null);
+    const fetchUserNotes = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/notes/`, {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setUserNotes(data.notes || []);
+            }
+        } catch (error) {
+            console.error('Error fetching notes:', error);
+        }
+    };
+
+    const handleSaveNote = async (note: any) => {
+        try {
+            const formData = new FormData();
+            formData.append('title', note.title);
+            formData.append('subject', note.subject || '');
+            formData.append('visibility', note.visibility.toLowerCase());
+            formData.append('content', note.content);
+            formData.append('tags', JSON.stringify(note.tags || []));
+
+            if (note.attachments && note.attachments.length > 0) {
+                note.attachments.forEach((file: File) => {
+                    formData.append('attachments', file);
+                });
+            }
+
+            const response = await fetch('http://localhost:8000/notes/', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create note');
+            }
+
+            const result = await response.json();
+            console.log('Note created:', result);
+            
+            setShowNoteEditor(false);
+            setEditingNote(null);
+            alert('Note created successfully!');
+            
+            // Refresh notes list
+            fetchUserNotes();
+        } catch (error) {
+            console.error('Error saving note:', error);
+            alert(`Failed to save note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     };
 
     const handleCloseNoteEditor = () => {
@@ -224,50 +384,116 @@ const ProfilePage: React.FC = () => {
         setEditingNote(null);
     };
 
-    const handleViewNote = (note: any) => {
-        // Create a detailed note object for viewing
-        const detailedNote = {
-            ...note,
-            content: `<h2>Introduction</h2>
-<p>This is the content of ${note.title.toLowerCase()}. In a real application, this content would come from your backend database.</p>
+    const handleDeleteNote = async (note: any): Promise<void> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/notes/${note.id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete note: ${response.status} - ${errorText}`);
+            }
+            
+            // Refresh notes list after deletion
+            fetchUserNotes();
+        } catch (error) {
+            console.error('Error deleting note:', error);
+            alert(`Failed to delete note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw error;
+        }
+    };
 
-<h3>Key Points</h3>
-<ul>
-  <li>Important concept #1</li>
-  <li>Important concept #2</li>
-  <li>Important concept #3</li>
-</ul>
+    const handleDeleteQuestion = async (question: any): Promise<void> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/posts/${question.id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to delete question: ${response.status} - ${errorText}`);
+            }
+            
+            // Refresh posts list after deletion
+            fetchUserPosts();
+        } catch (error) {
+            console.error('Error deleting question:', error);
+            alert(`Failed to delete question: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw error;
+        }
+    };
 
-<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
-
-<h3>Implementation Details</h3>
-<p>When implementing this concept, consider the following code example:</p>
-
-<pre><code>function example() {
-  const data = fetchData();
-  return data.map(item => ({
-    id: item.id,
-    name: item.name,
-    processed: true
-  }));
-}</code></pre>
-
-<p>Make sure to follow best practices for optimal results.</p>`,
-            author: {
-                name: profileData.name,
-                username: profileData.username,
-                honorLevel: profileData.honorLevel
-            },
-            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date().toISOString(),
-            views: Math.floor(Math.random() * 500) + 50,
-            likes: Math.floor(Math.random() * 50) + 5,
-            tags: note.subject ? [note.subject.toLowerCase()] : [],
-            attachments: []
-        };
-        
-        setSelectedNote(detailedNote);
-        setIsNoteViewerOpen(true);
+    const handleViewNote = async (note: any) => {
+        try {
+            console.log('Opening note:', note);
+            
+            // Fetch full note details including content
+            const response = await fetch(`${API_BASE_URL}/notes/${note.id}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Note fetch failed:', response.status, errorText);
+                throw new Error(`Failed to fetch note details: ${response.status}`);
+            }
+            
+            const noteData = await response.json();
+            console.log('Note data:', noteData);
+            
+            // Fetch the content file (it's automatically decrypted/decompressed by backend)
+            let content = '';
+            if (noteData.content_file_id) {
+                console.log('Fetching content file:', noteData.content_file_id);
+                const contentResponse = await fetch(`${API_BASE_URL}/files/${noteData.content_file_id}`, {
+                    credentials: 'include'
+                });
+                
+                console.log('Content response status:', contentResponse.status);
+                
+                if (contentResponse.ok) {
+                    content = await contentResponse.text();
+                    console.log('Content loaded, length:', content.length);
+                } else {
+                    const errorText = await contentResponse.text();
+                    console.error('Content fetch failed:', errorText);
+                }
+            } else {
+                console.warn('No content_file_id found in note data');
+            }
+            
+            // Fetch attachment details
+            const attachments = noteData.attachments || [];
+            
+            const detailedNote = {
+                id: noteData.id,
+                title: noteData.title || note.title,
+                subject: noteData.subject || note.subject,
+                visibility: noteData.visibility || 'private',
+                content: content,
+                author: {
+                    name: profileData.name,
+                    username: profileData.username,
+                    honorLevel: profileData.honorLevel
+                },
+                createdAt: noteData.created_at,
+                updatedAt: noteData.updated_at,
+                views: 0, // TODO: Implement view tracking
+                likes: 0, // TODO: Implement like tracking
+                tags: noteData.tags || [],
+                attachments: attachments
+            };
+            
+            console.log('Opening note viewer with:', detailedNote);
+            setSelectedNote(detailedNote);
+            setIsNoteViewerOpen(true);
+        } catch (error) {
+            console.error('Error viewing note:', error);
+            alert(`Failed to load note content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     };
 
     const closeNoteViewer = () => {
@@ -303,6 +529,40 @@ const ProfilePage: React.FC = () => {
                                 <div className="profile-username">@{profileData.username}</div>
                                 {profileData.bio && (
                                     <div className="profile-bio">{profileData.bio}</div>
+                                )}
+                                
+                                {(profileData.university || profileData.year || profileData.speciality) && (
+                                    <div className="academic-info">
+                                        {profileData.university && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                                                    <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                                                </svg>
+                                                <span>{profileData.university}</span>
+                                            </div>
+                                        )}
+                                        {profileData.year && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                                </svg>
+                                                <span>{profileData.year}</span>
+                                            </div>
+                                        )}
+                                        {profileData.speciality && (
+                                            <div className="academic-item">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                                                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                                                </svg>
+                                                <span>{profileData.speciality}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
 
                                 <div className="profile-stats">
@@ -353,32 +613,74 @@ const ProfilePage: React.FC = () => {
                             <div className="activity-card">
                                 <div className="activity-stats">
                                     <div className="stat">
-                                        <div className="stat-value">{userQuestions.length}</div>
+                                        <div className="stat-value">{userStats.posts}</div>
                                         <div className="stat-label">questions</div>
                                     </div>
                                     <div className="stat">
-                                        <div className="stat-value">{userComments.length}</div>
+                                        <div className="stat-value">{userStats.comments}</div>
                                         <div className="stat-label">comments</div>
                                     </div>
                                     <div className="stat">
-                                        <div className="stat-value">{publicNotes.length}</div>
+                                        <div className="stat-value">{userNotes.length}</div>
                                         <div className="stat-label">notes</div>
                                     </div>
                                 </div>
                                 <div className="sparkline-wrap">
-                                    <svg viewBox="0 0 240 60" preserveAspectRatio="none" className="sparkline">
-                                        <polyline
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            points={activityData.map((v, i) => {
-                                                const x = (i / (activityData.length - 1)) * 240;
-                                                const y = 60 - (v / maxActivity) * 50 - 5;
-                                                return `${x},${y}`;
-                                            }).join(' ')}
-                                        />
+                                    <svg viewBox="0 0 240 55" preserveAspectRatio="none" className="sparkline">
+                                        {activityData.length > 0 && maxActivity > 0 ? (
+                                            <polyline
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                points={activityData.map((v, i) => {
+                                                    const x = activityData.length > 1 ? (i / (activityData.length - 1)) * 240 : 120;
+                                                    const normalizedValue = maxActivity > 0 ? v / maxActivity : 0;
+                                                    const y = 50 - (normalizedValue * 45);
+                                                    return `${x},${y}`;
+                                                }).join(' ')}
+                                            />
+                                        ) : (
+                                            <line x1="0" y1="50" x2="240" y2="50" stroke="currentColor" strokeWidth="1" opacity="0.3" />
+                                        )}
                                     </svg>
-                                    <div className="sparkline-footer">last 12 months</div>
+                                    <div className="month-labels">
+                                        {activityData.length > 0 && (() => {
+                                            const labels: React.ReactNode[] = [];
+                                            const now = new Date();
+                                            
+                                            for (let i = 0; i < activityPeriod; i++) {
+                                                const monthDate = new Date(now.getFullYear(), now.getMonth() - (activityPeriod - 1 - i), 1);
+                                                const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'short' });
+                                                labels.push(
+                                                    <span key={i} className="month-label">{monthLabel}</span>
+                                                );
+                                            }
+                                            return labels;
+                                        })()}
+                                    </div>
+                                    <div className="sparkline-footer">
+                                        <div className="time-period-buttons">
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 3 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(3)}
+                                            >
+                                                3M
+                                            </button>
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 6 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(6)}
+                                            >
+                                                6M
+                                            </button>
+                                            <button 
+                                                className={`period-btn ${activityPeriod === 12 ? 'active' : ''}`}
+                                                onClick={() => setActivityPeriod(12)}
+                                            >
+                                                12M
+                                            </button>
+                                        </div>
+                                        <span>last {activityPeriod} months</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -399,7 +701,7 @@ const ProfilePage: React.FC = () => {
                                 </button>
                             </div>
                             <div className="notes-grid">
-                                {publicNotes.map(note => (
+                                {userNotes.map(note => (
                                     <div 
                                         key={note.id} 
                                         className="note-card"
@@ -425,15 +727,38 @@ const ProfilePage: React.FC = () => {
                                                         <path d="m5.738 9.262l3 3" stroke="currentColor" strokeWidth="0.75"/>
                                                     </svg>
                                                 </button>
+                                                <button 
+                                                    className="note-delete-btn" 
+                                                    onClick={async (e) => { 
+                                                        e.stopPropagation(); 
+                                                        if (window.confirm(`Are you sure you want to delete "${note.title}"? This action cannot be undone.`)) {
+                                                            await handleDeleteNote(note);
+                                                        }
+                                                    }}
+                                                    aria-label="Delete note"
+                                                    title="Delete this note"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                        <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                        <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </div>
                                         <p className="note-description">
-                                            {note.description}
+                                            {note.subject || 'No subject'}
                                         </p>
                                         <div className="note-meta">
-                                            <div className="note-subject">
-                                                <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
-                                                <span>{note.subject}</span>
+                                            {note.subject && (
+                                                <div className="note-subject">
+                                                    <span className={`subject-dot ${note.subject.toLowerCase().replace(/\s+/g, '-')}`}></span>
+                                                    <span>{note.subject}</span>
+                                                </div>
+                                            )}
+                                            <div className="note-visibility-badge">
+                                                <span className={`visibility-indicator ${note.visibility}`}>
+                                                    {note.visibility}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -447,27 +772,52 @@ const ProfilePage: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Questions Section */}
                         <div className="content-section">
                             <div className="section-header">
                                 <h2 className="section-title">Questions</h2>
                             </div>
                             <div className="list-container">
-                                {userQuestions.map(q => (
-                                    <div 
-                                        key={q.id} 
-                                        className="list-item"
-                                        onClick={() => console.log('Question clicked:', q.title)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="item-title">{q.title}</div>
-                                        <div className="item-meta">
-                                            <span className="badge">{q.votes} votes</span>
-                                            <span className="badge">{q.answers} answers</span>
-                                            <span className="muted">{q.timestamp}</span>
+                                {userPosts.length === 0 ? (
+                                    <div className="empty-state">No questions yet</div>
+                                ) : (
+                                    userPosts.map(post => (
+                                        <div 
+                                            key={post.id} 
+                                            className="list-item"
+                                            onClick={() => {
+                                                setSelectedPostId(post.id);
+                                                setIsPostDetailOpen(true);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="item-content">
+                                                <div className="item-title">{post.title}</div>
+                                                <div className="item-meta">
+                                                    <span className="badge">{post.likes} likes</span>
+                                                    <span className="badge">{post.comment_count} comments</span>
+                                                    <span className="badge">{post.views} views</span>
+                                                    <span className="muted">{new Date(post.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                className="item-delete-btn" 
+                                                onClick={async (e) => { 
+                                                    e.stopPropagation(); 
+                                                    if (window.confirm(`Are you sure you want to delete "${post.title}"? This action cannot be undone.`)) {
+                                                        await handleDeleteQuestion({ id: post.id, title: post.title });
+                                                    }
+                                                }}
+                                                aria-label="Delete question"
+                                                title="Delete this question"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                                    <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4m2 0v9.333a1.333 1.333 0 0 1-1.334 1.334H4.667a1.333 1.333 0 0 1-1.334-1.334V4h9.334z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                    <path d="M6.667 7.333v4M9.333 7.333v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                             <button
                                 className="see-all-btn"
@@ -477,32 +827,36 @@ const ProfilePage: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* Comments Section */}
+                        {/* Interacted Posts Section */}
                         <div className="content-section">
                             <div className="section-header">
-                                <h2 className="section-title">Comments</h2>
+                                <h2 className="section-title">Posts I've interacted with</h2>
                             </div>
                             <div className="list-container">
-                                {userComments.map(c => (
-                                    <div 
-                                        key={c.id} 
-                                        className="list-item"
-                                        onClick={() => console.log('Comment clicked:', c.content)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div className="item-body">{c.content}</div>
-                                        <div className="item-meta">
-                                            <span className="muted">{c.timestamp}</span>
+                                {interactedPosts.length === 0 ? (
+                                    <div className="empty-state">No interactions yet</div>
+                                ) : (
+                                    interactedPosts.slice(0, 5).map(post => (
+                                        <div 
+                                            key={post.id} 
+                                            className="list-item"
+                                            onClick={() => {
+                                                setSelectedPostId(post.id);
+                                                setIsPostDetailOpen(true);
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            <div className="item-title">{post.title}</div>
+                                            <div className="item-meta">
+                                                {post.liked_by_user && <span className="badge liked">❤️ Liked</span>}
+                                                <span className="badge">{post.likes} likes</span>
+                                                <span className="badge">{post.comment_count} comments</span>
+                                                <span className="muted">by @{post.author_name}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
-                            <button
-                                className="see-all-btn"
-                                onClick={() => setShowCommentsPopup(true)}
-                            >
-                                See all my comments
-                            </button>
                         </div>
 
                         {/* Tags Section */}
@@ -655,19 +1009,25 @@ const ProfilePage: React.FC = () => {
             <NotesPopup 
                 isOpen={showNotesPopup}
                 onClose={() => setShowNotesPopup(false)}
-                notes={publicNotes}
+                notes={userNotes}
                 onEditNote={handleEditNote}
                 onViewNote={handleViewNote}
+                onDeleteNote={handleDeleteNote}
             />
 
             {/* Questions Popup */}
-            <QuestionPopup 
+            <QuestionPopup
                 isOpen={showQuestionsPopup}
                 onClose={() => setShowQuestionsPopup(false)}
-                questions={userQuestions}
-            />
-
-            {/* Comments Popup */}
+                questions={userPosts.map(post => ({
+                    id: post.id,
+                    title: post.title,
+                    timestamp: new Date(post.created_at).toLocaleDateString(),
+                    votes: post.likes,
+                    answers: post.comment_count
+                }))}
+                onDeleteQuestion={handleDeleteQuestion}
+            />            {/* Comments Popup */}
             <CommentsPopup 
                 isOpen={showCommentsPopup}
                 onClose={() => setShowCommentsPopup(false)}
@@ -824,6 +1184,17 @@ const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <PostDetailPopup
+                isOpen={isPostDetailOpen}
+                onClose={() => {
+                    setIsPostDetailOpen(false);
+                    setSelectedPostId(null);
+                    fetchUserPosts();
+                    fetchInteractedPosts();
+                }}
+                postId={selectedPostId}
+            />
         </div>
     );
 };

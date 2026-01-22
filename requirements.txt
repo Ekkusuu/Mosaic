@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlmodel
 psycopg2-binary
 python-dotenv
+python-dateutil
 bcrypt>=4.0.1
 python-multipart
 alembic
@@ -15,3 +16,10 @@ requests
 httpx
 captcha
 Pillow
+chromadb
+sentence-transformers
+transformers
+tokenizers
+torch
+accelerate
+pypdf

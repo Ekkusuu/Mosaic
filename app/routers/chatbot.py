@@ -1,8 +1,10 @@
 import os
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from huggingface_hub import InferenceClient
+from app.llama_engine import get_config
+from app.rag_engine import retrieve_context, format_context_for_prompt, generate_rag_query
 
 # Expect HF_TOKEN in environment (.env loaded by db module on startup indirectly)
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -31,6 +33,8 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+    # contexts returned for client-side display (source name and snippet)
+    contexts: Optional[List[Dict[str, Any]]] = None
 
 MODEL_NAME = "openai/gpt-oss-120b"
 
@@ -39,11 +43,135 @@ def chat(req: ChatRequest):
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")
 
+    # Load config and decide if RAG should be used for this request
+    try:
+        cfg = get_config()
+        rag_cfg = cfg.get("rag", {})
+        use_rag = bool(rag_cfg.get("enabled", False))
+    except Exception:
+        use_rag = False
+
+    # Prepare messages payload (convert pydantic models to dicts)
+    messages_payload = [m.model_dump() for m in req.messages]
+
+    # If RAG is enabled, retrieve context for the last user message and
+    # attach formatted context to the system prompt (or create one).
+    if use_rag:
+        # Find last user message content
+        last_user = None
+        for m in reversed(messages_payload):
+            if m.get("role") == "user":
+                last_user = m.get("content")
+                break
+
+        if last_user:
+            try:
+                # Generate contextual query using conversation history
+                contextual_query = generate_rag_query(messages_payload, last_user)
+                
+                # Retrieve context using the generated query
+                results = retrieve_context(contextual_query, top_k=rag_cfg.get("top_k", None))
+                contexts = []
+                if isinstance(results, dict):
+                    contexts = results.get("accepted") or []
+                elif isinstance(results, list):
+                    contexts = results
+
+                # Create a contexts payload for the client (source names + text)
+                # Fetch usernames for note owners to display "Username/Note_Title"
+                from sqlmodel import Session, select
+                from app.db import get_session
+                from app.models import User, StudentProfile
+                
+                contexts_for_client = []
+                owner_cache = {}  # Cache to avoid repeated DB queries
+                
+                for ctx in contexts:
+                    metadata = ctx.get("metadata", {})
+                    note_id = metadata.get("note_id")
+                    owner_id = metadata.get("owner_id")
+                    note_title = metadata.get("note_title", "Unknown Note")
+                    source_type = metadata.get("source_type", "unknown")
+                    
+                    # Fetch owner username if we have owner_id
+                    owner_display = "Unknown"
+                    if owner_id and owner_id not in owner_cache:
+                        try:
+                            # Get a session - we need to handle this properly
+                            # Since we don't have request/session injected here, we'll create one
+                            from app.db import engine
+                            with Session(engine) as session:
+                                # Try to get profile first for username
+                                profile = session.exec(
+                                    select(StudentProfile).where(StudentProfile.user_id == owner_id)
+                                ).first()
+                                if profile and profile.username:
+                                    owner_cache[owner_id] = profile.username
+                                elif profile and profile.name:
+                                    owner_cache[owner_id] = profile.name
+                                else:
+                                    # Fallback to User.name
+                                    user = session.get(User, owner_id)
+                                    owner_cache[owner_id] = user.name if user else "Unknown"
+                        except Exception as e:
+                            print(f"Error fetching owner info: {e}")
+                            owner_cache[owner_id] = "Unknown"
+                    
+                    if owner_id:
+                        owner_display = owner_cache.get(owner_id, "Unknown")
+                    
+                    # Format source as "Username/Note_Title"
+                    source_display = f"{owner_display}/{note_title}" if note_id else metadata.get("source_file", "unknown")
+                    
+                    contexts_for_client.append({
+                        "source": source_display,
+                        "text": ctx.get("text", ""),
+                        "note_id": note_id,
+                        "owner_id": owner_id,
+                        "note_title": note_title
+                    })
+
+                # Format the contexts for injection into the system prompt, but omit source names.
+                # We deliberately avoid giving the model the source filenames to discourage inline
+                # citation generation — the UI will render source names separately.
+                ctx_texts = []
+                for i, ctx in enumerate(contexts, 1):
+                    ctx_texts.append(f"---\n{ctx.get('text', '')}\n")
+                formatted = "Relevant context (for reference only):\n\n" + "\n".join(ctx_texts) if contexts else ""
+
+                # Strong instruction to the LLM: do not include inline citations or references
+                instruction = (
+                    "Use the following retrieved context to inform your answer. "
+                    "IMPORTANT: Do NOT include inline citations, footnotes, or references to these documents inside the answer text. "
+                    "Do NOT mention source filenames or chunk labels in the body. The client will display source names separately. "
+                    "Focus on answering clearly and concisely using the context provided."
+                )
+
+                if formatted:
+                    # Attach to existing system prompt if present
+                    system_found = False
+                    for msg in messages_payload:
+                        if msg.get("role") == "system":
+                            # Append instruction + contexts at the end of system message
+                            msg_content = msg.get("content", "")
+                            additions = instruction + "\n\n" + formatted
+                            msg["content"] = (msg_content + "\n\n" + additions).strip()
+                            system_found = True
+                            break
+
+                    if not system_found:
+                        # Use configured system prompt as base if available
+                        base_sys = cfg.get("chat", {}).get("system_prompt", "")
+                        combined = (base_sys + "\n\n" + instruction + "\n\n" + formatted).strip() if base_sys else (instruction + "\n\n" + formatted)
+                        messages_payload.insert(0, {"role": "system", "content": combined})
+            except Exception as e:
+                print(f"RAG retrieval error: {e}")
+
     # Convert to structure expected by HF client (already matching openai style)
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[m.model_dump() for m in req.messages],
+            messages=messages_payload,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
         )
@@ -56,4 +184,7 @@ def chat(req: ChatRequest):
     except Exception:
         # fallback: stringify
         reply_msg = str(completion)
-    return ChatResponse(reply=reply_msg)
+
+    # Return contexts_for_client (if available) so the frontend can render a styled references list
+    contexts_for_client = locals().get('contexts_for_client')
+    return ChatResponse(reply=reply_msg, contexts=contexts_for_client)

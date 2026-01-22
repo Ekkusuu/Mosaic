@@ -47,6 +47,51 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         'Medicine', 'Law', 'Philosophy', 'Art', 'Music', 'Other'
     ];
 
+    // Convert markdown attachment syntax to HTML references
+    const markdownToHtml = (markdown: string): string => {
+        // Convert {attach: file="index", name="display name"} to HTML references
+        return markdown.replace(/\{attach:\s*file="(\d+)"\s*,\s*name="([^"]+)"\}/g, (match, fileIndex, displayName) => {
+            const index = parseInt(fileIndex);
+            const file = noteData.attachments[index];
+            
+            if (!file) return match; // Keep original if file not found
+            
+            const isImage = file.type.startsWith('image/');
+            const icon = isImage ? `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21,15 16,10 5,21"></polyline>
+                </svg>
+            ` : `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+            `;
+            
+            const className = isImage ? 'image-reference' : 'document-reference';
+            return `<span class="${className}" contenteditable="false" data-file-index="${fileIndex}" style="cursor: pointer;">${icon}${displayName}</span>`;
+        });
+    };
+
+    // Convert HTML references to markdown attachment syntax
+    const htmlToMarkdown = (html: string): string => {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // Find all reference elements
+        const references = tempDiv.querySelectorAll('.document-reference, .image-reference');
+        references.forEach(ref => {
+            const fileIndex = ref.getAttribute('data-file-index') || '0';
+            const displayName = ref.textContent?.trim() || '';
+            const markdownRef = `{attach: file="${fileIndex}", name="${displayName}"}`;
+            ref.replaceWith(markdownRef);
+        });
+        
+        return tempDiv.innerHTML;
+    };
+
     // Set initial content when component mounts or existingNote changes
     useEffect(() => {
         if (contentRef.current && isOpen) {
@@ -54,7 +99,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             contentRef.current.innerHTML = '';
             // Then set the content if it exists
             if (noteData.content) {
-                contentRef.current.innerHTML = noteData.content;
+                // Convert markdown format to HTML for editing
+                const htmlContent = markdownToHtml(noteData.content);
+                contentRef.current.innerHTML = htmlContent;
             }
             
             // Add event listeners for reference editing and content elements
@@ -87,6 +134,224 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         if (contentRef.current) {
             const content = contentRef.current.innerHTML;
             setNoteData(prev => ({ ...prev, content }));
+        }
+    };
+
+    const handleSpaceKey = (e: React.KeyboardEvent) => {
+        if (!contentRef.current) return;
+        
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const currentNode = range.startContainer;
+
+        if (currentNode.nodeType !== Node.TEXT_NODE) return;
+
+        // Get text before cursor (including the space that was just typed)
+        const textBeforeCursor = currentNode.textContent?.substring(0, range.startOffset) || '';
+        
+        // Check for markdown patterns and use the same formatText function as buttons
+        if (/^##\s$/.test(textBeforeCursor)) {
+            // Select and delete the "## "
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, 3); // "## " is 3 characters
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            // Now apply heading format using the same method as button
+            formatText('formatBlock', 'h2');
+        } else if (/^###\s$/.test(textBeforeCursor)) {
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, 4); // "### " is 4 characters
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            formatText('formatBlock', 'h3');
+        } else if (/^-\s$/.test(textBeforeCursor) || /^\*\s$/.test(textBeforeCursor)) {
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, 2); // "- " or "* " is 2 characters
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            formatText('insertUnorderedList');
+        } else if (/^\d+\.\s$/.test(textBeforeCursor)) {
+            const matchLen = textBeforeCursor.length; // Variable length for "1. ", "12. " etc
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, matchLen);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            formatText('insertOrderedList');
+        } else if (/^>\s$/.test(textBeforeCursor)) {
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, 2); // "> " is 2 characters
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            insertQuote();
+        } else if (/^```\s$/.test(textBeforeCursor)) {
+            const newRange = document.createRange();
+            newRange.setStart(currentNode, 0);
+            newRange.setEnd(currentNode, 4); // "``` " is 4 characters
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            document.execCommand('delete', false);
+            
+            insertCodeBlock();
+        }
+    };
+
+    const handleRealtimeMarkdown = () => {
+        const selection = window.getSelection();
+        if (!selection || !selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const currentNode = range.startContainer;
+        
+        if (currentNode.nodeType !== Node.TEXT_NODE) return;
+        
+        const textContent = currentNode.textContent || '';
+        const cursorPos = range.startOffset;
+
+        // Save cursor position
+        const saveCursor = () => {
+            const newRange = document.createRange();
+            const sel = window.getSelection();
+            try {
+                newRange.setStart(currentNode, Math.min(cursorPos, currentNode.textContent?.length || 0));
+                newRange.collapse(true);
+                sel?.removeAllRanges();
+                sel?.addRange(newRange);
+            } catch (e) {
+                // Cursor position invalid, ignore
+            }
+        };
+
+        // Check for **bold** pattern
+        const boldPattern = /\*\*([^*]+)\*\*/g;
+        let boldMatch;
+        let replacements: Array<{start: number, end: number, element: HTMLElement}> = [];
+        
+        while ((boldMatch = boldPattern.exec(textContent)) !== null) {
+            const bold = document.createElement('strong');
+            bold.textContent = boldMatch[1];
+            replacements.push({
+                start: boldMatch.index,
+                end: boldMatch.index + boldMatch[0].length,
+                element: bold
+            });
+        }
+
+        // Check for *italic* pattern (but not **)
+        const italicPattern = /(?<!\*)\*([^*]+)\*(?!\*)/g;
+        let italicMatch;
+        
+        while ((italicMatch = italicPattern.exec(textContent)) !== null) {
+            const italic = document.createElement('em');
+            italic.textContent = italicMatch[1];
+            replacements.push({
+                start: italicMatch.index,
+                end: italicMatch.index + italicMatch[0].length,
+                element: italic
+            });
+        }
+
+        // Check for `code` pattern
+        const codePattern = /`([^`]+)`/g;
+        let codeMatch;
+        
+        while ((codeMatch = codePattern.exec(textContent)) !== null) {
+            const code = document.createElement('code');
+            code.textContent = codeMatch[1];
+            code.style.background = 'rgba(0, 0, 0, 0.05)';
+            code.style.padding = '2px 4px';
+            code.style.borderRadius = '3px';
+            code.style.fontFamily = 'monospace';
+            replacements.push({
+                start: codeMatch.index,
+                end: codeMatch.index + codeMatch[0].length,
+                element: code
+            });
+        }
+
+        if (replacements.length > 0) {
+            const parent = currentNode.parentNode;
+            if (!parent) return;
+
+            // Sort replacements by start position (descending) to replace from end to start
+            replacements.sort((a, b) => b.start - a.start);
+
+            const fragment = document.createDocumentFragment();
+            let lastEnd = textContent.length;
+            let newCursorNode: Node | null = null;
+            let newCursorOffset = cursorPos;
+
+            // Build the fragment from end to start
+            for (const replacement of replacements.reverse()) {
+                // Add text after this replacement
+                if (replacement.end < lastEnd) {
+                    const afterText = textContent.substring(replacement.end, lastEnd);
+                    const afterNode = document.createTextNode(afterText);
+                    fragment.insertBefore(afterNode, fragment.firstChild);
+                    
+                    if (cursorPos >= replacement.end && cursorPos <= lastEnd) {
+                        newCursorNode = afterNode;
+                        newCursorOffset = cursorPos - replacement.end;
+                    }
+                }
+
+                // Add the replacement element
+                fragment.insertBefore(replacement.element, fragment.firstChild);
+                
+                if (cursorPos >= replacement.start && cursorPos <= replacement.end) {
+                    newCursorNode = replacement.element.firstChild;
+                    newCursorOffset = Math.min(cursorPos - replacement.start - 2, replacement.element.textContent?.length || 0);
+                }
+
+                lastEnd = replacement.start;
+            }
+
+            // Add text before first replacement
+            if (lastEnd > 0) {
+                const beforeText = textContent.substring(0, lastEnd);
+                const beforeNode = document.createTextNode(beforeText);
+                fragment.insertBefore(beforeNode, fragment.firstChild);
+                
+                if (cursorPos < lastEnd) {
+                    newCursorNode = beforeNode;
+                    newCursorOffset = cursorPos;
+                }
+            }
+
+            // Replace the text node with the fragment
+            parent.replaceChild(fragment, currentNode);
+
+            // Restore cursor position
+            if (newCursorNode) {
+                try {
+                    const newRange = document.createRange();
+                    newRange.setStart(newCursorNode, Math.min(newCursorOffset, newCursorNode.textContent?.length || 0));
+                    newRange.collapse(true);
+                    const sel = window.getSelection();
+                    sel?.removeAllRanges();
+                    sel?.addRange(newRange);
+                } catch (e) {
+                    // Cursor position invalid, ignore
+                }
+            }
+
+            handleContentChange();
         }
     };
 
@@ -285,9 +550,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             return;
         }
         
+        // Convert HTML references back to markdown format before saving
+        const htmlContent = contentRef.current?.innerHTML || '';
+        const markdownContent = htmlToMarkdown(htmlContent);
+        
         const finalNote = {
             ...noteData,
-            content: contentRef.current?.innerHTML || '',
+            content: markdownContent,
             id: existingNote?.id
         };
         
@@ -694,6 +963,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 className="editor-content"
                                 contentEditable
                                 onInput={(e) => {
+                                    handleRealtimeMarkdown();
                                     const content = e.currentTarget.innerHTML;
                                     setNoteData(prev => ({ ...prev, content }));
                                     // Re-add listeners for any new content elements
@@ -701,6 +971,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                         addReferenceEventListeners();
                                         addContentElementsListeners();
                                     }, 0);
+                                }}
+                                onKeyUp={(e) => {
+                                    if (e.key === ' ') {
+                                        handleSpaceKey(e);
+                                    }
                                 }}
                                 suppressContentEditableWarning={true}
                             />

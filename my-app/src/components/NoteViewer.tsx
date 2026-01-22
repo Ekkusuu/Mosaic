@@ -29,10 +29,41 @@ interface NoteViewerProps {
 const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
     const contentRef = useRef<HTMLDivElement>(null);
 
+    // Convert markdown attachment syntax to HTML references for viewing
+    const markdownToHtml = (markdown: string): string => {
+        // Convert {attach: file="index", name="display name"} to HTML references
+        return markdown.replace(/\{attach:\s*file="(\d+)"\s*,\s*name="([^"]+)"\}/g, (match, fileIndex, displayName) => {
+            const index = parseInt(fileIndex);
+            const attachment = note?.attachments?.[index];
+            
+            if (!attachment) return displayName; // Fallback to display name if attachment not found
+            
+            // Determine if it's an image based on filename
+            const isImage = attachment.filename?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+            
+            const icon = isImage ? `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21,15 16,10 5,21"></polyline>
+                </svg>
+            ` : `
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14,2 14,8 20,8"></polyline>
+                </svg>
+            `;
+            
+            const className = isImage ? 'image-reference' : 'document-reference';
+            return `<span class="${className}" data-file-index="${fileIndex}" data-file-id="${attachment.id || ''}" style="cursor: pointer;">${icon}${displayName}</span>`;
+        });
+    };
+
     useEffect(() => {
         if (contentRef.current && note?.content) {
-            // Set the HTML content
-            contentRef.current.innerHTML = note.content;
+            // Convert markdown format to HTML for viewing
+            const htmlContent = markdownToHtml(note.content);
+            contentRef.current.innerHTML = htmlContent;
             
             // Add click handlers for references
             addReferenceClickHandlers();
@@ -48,13 +79,184 @@ const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
         });
     };
 
-    const handleReferenceClick = (e: Event) => {
+    const handleReferenceClick = async (e: Event) => {
         e.preventDefault();
         const reference = e.currentTarget as HTMLElement;
-        const fileName = reference.textContent?.trim() || 'Unknown file';
+        const fileId = reference.getAttribute('data-file-id');
+        const fileIndex = reference.getAttribute('data-file-index');
         
-        // Show info about the reference since we can't download in this context
-        alert(`This note references: ${fileName}\n\nIn a full implementation, this would allow you to view or download the file.`);
+        if (!fileId || !fileIndex) {
+            alert('File not found');
+            return;
+        }
+        
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+            const attachment = note?.attachments?.[parseInt(fileIndex)];
+            
+            if (!attachment) {
+                alert('File not found');
+                return;
+            }
+            
+            // Fetch the file
+            const response = await fetch(`${API_BASE_URL}/files/${fileId}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to load file');
+            }
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            
+            // Determine file type and display accordingly
+            const fileName = attachment.filename || '';
+            const isImage = fileName.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i);
+            const isPdf = fileName.match(/\.pdf$/i);
+            const isText = fileName.match(/\.(txt|md|json|xml|html|css|js|ts|tsx|jsx|py|java|c|cpp|h|rs)$/i);
+            
+            // Create modal overlay for displaying the file
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                padding: 20px;
+            `;
+            
+            // Close button
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '×';
+            closeBtn.style.cssText = `
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                color: white;
+                font-size: 32px;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.2s;
+            `;
+            closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255, 255, 255, 0.2)';
+            closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+            closeBtn.onclick = () => {
+                document.body.removeChild(overlay);
+                window.URL.revokeObjectURL(url);
+            };
+            overlay.appendChild(closeBtn);
+            
+            if (isImage) {
+                // Display image
+                const img = document.createElement('img');
+                img.src = url;
+                img.style.cssText = `
+                    max-width: 90%;
+                    max-height: 90%;
+                    object-fit: contain;
+                    border-radius: 8px;
+                `;
+                overlay.appendChild(img);
+            } else if (isPdf) {
+                // Display PDF
+                const iframe = document.createElement('iframe');
+                iframe.src = url;
+                iframe.style.cssText = `
+                    width: 90%;
+                    height: 90%;
+                    border: none;
+                    border-radius: 8px;
+                    background: white;
+                `;
+                overlay.appendChild(iframe);
+            } else if (isText) {
+                // Display text content
+                const text = await blob.text();
+                const pre = document.createElement('pre');
+                pre.textContent = text;
+                pre.style.cssText = `
+                    max-width: 90%;
+                    max-height: 90%;
+                    overflow: auto;
+                    background: white;
+                    color: black;
+                    padding: 20px;
+                    border-radius: 8px;
+                    font-family: monospace;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                `;
+                overlay.appendChild(pre);
+            } else {
+                // Unsupported file type - offer download
+                window.URL.revokeObjectURL(url);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+            
+            // Close on background click
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                    window.URL.revokeObjectURL(url);
+                }
+            };
+            
+            document.body.appendChild(overlay);
+        } catch (error) {
+            console.error('Error displaying file:', error);
+            alert('Failed to display file');
+        }
+    };
+
+    const handleAttachmentDownload = async (attachmentId: number, fileName: string) => {
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+            
+            // Fetch the file
+            const response = await fetch(`${API_BASE_URL}/files/${attachmentId}`, {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to download file');
+            }
+            
+            // Get the blob and create download link
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            alert('Failed to download file');
+        }
     };
 
     const getSubjectDotClass = (subject: string) => {
@@ -217,12 +419,19 @@ const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
                                 <h3 className="info-title">Attachments</h3>
                                 <div className="note-attachments">
                                     {note.attachments.map((attachment, index) => (
-                                        <div key={index} className="attachment-item">
+                                        <div 
+                                            key={index} 
+                                            className="attachment-item"
+                                            onClick={() => handleAttachmentDownload(attachment.id, attachment.filename || `Attachment_${index + 1}`)}
+                                            style={{ cursor: 'pointer' }}
+                                            title="Click to download"
+                                        >
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                <polyline points="14,2 14,8 20,8"></polyline>
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                <polyline points="7,10 12,15 17,10"></polyline>
+                                                <line x1="12" y1="15" x2="12" y2="3"></line>
                                             </svg>
-                                            <span className="attachment-name">{attachment.name || `Attachment ${index + 1}`}</span>
+                                            <span className="attachment-name">{attachment.filename || `Attachment ${index + 1}`}</span>
                                         </div>
                                     ))}
                                 </div>

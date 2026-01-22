@@ -212,31 +212,40 @@ def validate_captcha_submission(captcha_id: str, captcha_text: str) -> None:
 
 @router.post("/register", response_model=UserRead)
 def register_user(
-    user_in: UserCreate, 
+    user_in: UserCreate,
+    response: Response,
     background_tasks: BackgroundTasks,
-    response: Response, 
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
-    # Normalize email + name trimming
     email = (user_in.email or "").strip().lower()
     name = (user_in.name or "").strip()
-    
-    if not email or not name:
-        raise HTTPException(status_code=400, detail="Email, name, and password are required")
+    password = user_in.password or ""
 
-    # Validations (domain + password + username pattern)
+    if not email or not name or not password:
+        raise HTTPException(status_code=400, detail="Email, name and password are required")
+
+    existing = session.exec(select(User).where(User.email == email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
     try:
         validate_email_domain(email)
-        validate_password(user_in.password)
+        validate_password(password)
         validate_username(name)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    hashed = hash_password(user_in.password)
+    user = User(email=email, name=name, hashed_password=hash_password(password))
+    session.add(user)
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Failed to create user") from e
+    session.refresh(user)
 
-    # Derive university from domain (simple heuristic)
-    domain_part = email.split('@', 1)[1] if '@' in email else ''
     university = None
+    domain_part = email.split('@', 1)[1] if '@' in email else ''
     if domain_part:
         fragments = domain_part.split('.')
         if len(fragments) >= 2:
@@ -250,16 +259,30 @@ def register_user(
     session.add(user)
     session.add(profile)
     try:
+        profile = StudentProfile(user_id=user.id, university=university, username=name)
+        session.add(profile)
         session.commit()
-    except Exception as e:  # likely integrity error for duplicate
-        session.rollback()
-        # Log the actual error for debugging
-        import traceback
-        print(f"Registration error: {str(e)}")
-        print(traceback.format_exc())
-        # Hide raw DB exception details from client
-        raise HTTPException(status_code=400, detail=f"Could not register user: {str(e)}") from e
-    session.refresh(user)
+    except Exception:
+        session.rollback()  # Non-fatal; continue without profile
+
+    # Create initial email verification entry & send code if user not verified yet
+    if not user.is_verified:
+        verification_code = generate_verification_code()
+        verification_hash = hash_password(verification_code)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_CODE_EXPIRATION_MINUTES)
+
+        verification = EmailVerification(
+            user_id=user.id,
+            code_hash=verification_hash,
+            expires_at=expires_at,
+        )
+        try:
+            session.add(verification)
+            session.commit()
+        except Exception:
+            session.rollback()  # Non-fatal; proceed without email but user remains unverified
+        else:
+            background_tasks.add_task(send_verification_email, user.email, verification_code, user.name)
 
     # Generate verification code for email (but don't send yet - wait for face verification)
     verification_code = generate_verification_code()
@@ -411,6 +434,100 @@ def logout_user(response: Response):
 def get_current_user(request: Request, session: Session = Depends(get_session)):
     user = get_user_from_token(request, session)
     return user
+
+@router.get("/me/stats")
+def get_user_stats(request: Request, session: Session = Depends(get_session)):
+    from app.models import Post, Comment
+    user = get_user_from_token(request, session)
+    
+    post_count = session.exec(select(Post).where(Post.author_id == user.id)).all()
+    comment_count = session.exec(select(Comment).where(Comment.user_id == user.id)).all()
+    
+    return {
+        "posts": len(post_count),
+        "comments": len(comment_count)
+    }
+
+@router.get("/me/activity")
+def get_user_activity(request: Request, months: int = 12, session: Session = Depends(get_session)):
+    """
+    Get user activity data for the specified number of months.
+    Returns monthly counts of notes, comments, and questions (posts).
+    """
+    from app.models import Post, Comment, Note
+    from datetime import datetime, timezone
+    from dateutil.relativedelta import relativedelta
+    
+    user = get_user_from_token(request, session)
+    
+    # Get current month and calculate start month
+    now = datetime.now(timezone.utc)
+    current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Initialize activity data structure with all months (oldest to newest)
+    activity_by_month = {}
+    month_list = []
+    for i in range(months - 1, -1, -1):  # Reverse to get oldest first
+        month_date = current_month - relativedelta(months=i)
+        month_key = f"{month_date.year}-{month_date.month:02d}"
+        month_list.append(month_key)
+        activity_by_month[month_key] = {
+            "month": month_key,
+            "notes": 0,
+            "comments": 0,
+            "questions": 0,
+            "total": 0
+        }
+    
+    # Calculate start date for filtering
+    start_date = current_month - relativedelta(months=months)
+    
+    # Fetch and aggregate notes
+    notes = session.exec(
+        select(Note)
+        .where(Note.user_id == user.id)
+        .where(Note.created_at >= start_date)
+    ).all()
+    
+    for note in notes:
+        month_key = f"{note.created_at.year}-{note.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["notes"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Fetch and aggregate comments
+    comments = session.exec(
+        select(Comment)
+        .where(Comment.user_id == user.id)
+        .where(Comment.created_at >= start_date)
+    ).all()
+    
+    for comment in comments:
+        month_key = f"{comment.created_at.year}-{comment.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["comments"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Fetch and aggregate questions (posts)
+    posts = session.exec(
+        select(Post)
+        .where(Post.author_id == user.id)
+        .where(Post.created_at >= start_date)
+    ).all()
+    
+    for post in posts:
+        month_key = f"{post.created_at.year}-{post.created_at.month:02d}"
+        if month_key in activity_by_month:
+            activity_by_month[month_key]["questions"] += 1
+            activity_by_month[month_key]["total"] += 1
+    
+    # Convert to ordered list (oldest to newest for chart display)
+    activity_list = [activity_by_month[month_key] for month_key in month_list]
+    
+    return {
+        "months": months,
+        "activity": activity_list
+    }
 
 @router.get("/", response_model=list[UserRead])
 def list_users(session: Session = Depends(get_session)):

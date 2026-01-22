@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './AIChat.css';
 
 interface Message {
@@ -21,6 +23,7 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pulledChunks, setPulledChunks] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8001';
@@ -56,9 +59,14 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
         const text = await res.text();
         throw new Error(text || `Error ${res.status}`);
       }
-      const data: { reply: string } = await res.json();
+      const data: { reply: string; contexts?: any[] } = await res.json();
       const assistantMsg: Message = { id: Date.now() + 1, role: 'assistant', content: data.reply };
       setChatMessages(prev => [...prev, assistantMsg]);
+      if (data.contexts && Array.isArray(data.contexts)) {
+        setPulledChunks(data.contexts);
+      } else {
+        setPulledChunks([]);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to get response');
       const failMsg: Message = { id: Date.now() + 2, role: 'assistant', content: 'Sorry, I had an issue answering that.', error: true };
@@ -88,14 +96,75 @@ const AIChat: React.FC<AIChatProps> = ({ className }) => {
   return (
     <div className={`ai-chat-container ${className || ''}`}>
       <div className="ai-messages">
-        {chatMessages.map(m => (
+        {chatMessages.map((m, idx) => (
           <div key={m.id} className={`ai-message ${m.role} ${m.error ? 'error' : ''}`}>
-            <div className="bubble">{m.content}</div>
+            <div className="bubble">
+              {m.role === 'assistant' ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+              ) : (
+                m.content
+              )}
+            </div>
+
+            {/* If this is the latest assistant message and we have pulledChunks, render a styled Sources block */}
+            {m.role === 'assistant' && idx === chatMessages.length - 1 && pulledChunks.length > 0 && (
+              <div className="ai-references" aria-live="polite">
+                <div className="ai-references-title">Sources</div>
+                <ul className="ai-references-list">
+                  {pulledChunks.map((c, i) => {
+                    const handleSourceClick = async () => {
+                      if (c.note_id) {
+                        try {
+                          // Fetch the full note details from the API
+                          const res = await fetch(`${API_BASE}/notes/${c.note_id}`, {
+                            credentials: 'include',
+                          });
+                          if (!res.ok) throw new Error('Failed to fetch note');
+                          const noteData = await res.json();
+                          
+                          // Dispatch a custom event to open the note viewer
+                          // MainPage will listen for this event
+                          window.dispatchEvent(new CustomEvent('openNote', { 
+                            detail: { note: noteData } 
+                          }));
+                        } catch (err) {
+                          console.error('Error opening note:', err);
+                        }
+                      }
+                    };
+                    
+                    return (
+                      <li key={i} className="ai-reference-item">
+                        {c.note_id ? (
+                          <button 
+                            className="ai-reference-link"
+                            onClick={handleSourceClick}
+                            title={`Open note: ${c.note_title || 'Untitled'}`}
+                          >
+                            {c.source || 'unknown'}
+                          </button>
+                        ) : (
+                          <span>{c.source || 'unknown'}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
+        {/* Only show Sources under the assistant message; no separate retrieved panel */}
         {loading && (
           <div className="ai-message assistant loading">
-            <div className="bubble">Thinking...</div>
+            <div className="bubble">
+              <span className="typing-dots" aria-hidden>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              <span className="sr-only">Thinking…</span>
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
