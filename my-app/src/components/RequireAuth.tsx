@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8001';
 
 // Helper to parse truthy env values like true/1/yes/on (case-insensitive)
 function isTruthyEnv(val: unknown): boolean {

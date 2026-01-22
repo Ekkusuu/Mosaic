@@ -45,7 +45,7 @@ const SettingsPopup: React.FC<SettingsPopupProps> = ({ isOpen, onClose }) => {
     setIsChangingPassword(true);
 
     try {
-      const response = await fetch('http://localhost:8000/users/change-password', {
+      const response = await fetch('http://localhost:8001/users/change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

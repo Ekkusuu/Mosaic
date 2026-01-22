@@ -8,6 +8,8 @@ export default defineConfig({
   // Only variables prefixed with VITE_ are exposed to the client bundle
   envDir: '..',
   server: {
+    host: '0.0.0.0', // Listen on all network interfaces
+    port: 5178,
     // Security headers for development server
     // These address OWASP ZAP findings for the frontend
     // Note: 'unsafe-inline' and 'unsafe-eval' are REQUIRED for Vite HMR in development

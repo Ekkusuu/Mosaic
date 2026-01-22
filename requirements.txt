@@ -14,6 +14,8 @@ zstandard
 pytest
 requests
 httpx
+captcha
+Pillow
 chromadb
 sentence-transformers
 transformers
