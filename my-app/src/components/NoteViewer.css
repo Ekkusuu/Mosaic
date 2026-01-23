@@ -576,13 +576,61 @@
     height: 16px;
 }
 
-.like-btn:hover {
+/* Upvote button styles */
+.upvote-btn:hover {
+    color: #22c55e;
+    border-color: #22c55e;
+}
+
+.upvote-btn:hover svg {
+    stroke: #22c55e;
+}
+
+.upvote-btn.voted {
+    color: #22c55e;
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.upvote-btn.voted svg {
+    fill: #22c55e;
+    stroke: #22c55e;
+}
+
+/* Downvote button styles */
+.downvote-btn:hover {
     color: #ef4444;
     border-color: #ef4444;
 }
 
-.like-btn:hover svg {
+.downvote-btn:hover svg {
+    stroke: #ef4444;
+}
+
+.downvote-btn.voted {
+    color: #ef4444;
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.downvote-btn.voted svg {
     fill: #ef4444;
+    stroke: #ef4444;
+}
+
+.upvote-btn:disabled,
+.downvote-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Vote stat styles in header */
+.note-stat.voted-up {
+    color: #22c55e;
+}
+
+.note-stat.voted-down {
+    color: #ef4444;
 }
 
 /* Responsive Design */

@@ -130,6 +130,11 @@ class Note(SQLModel, table=True):
     title: Optional[str] = Field(default=None, sa_column=Column(String(200), nullable=True))
     subject: Optional[str] = Field(default=None, sa_column=Column(String(120), nullable=True))
     visibility: str = Field(default="private")  # private|public
+    views: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    upvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    downvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    # JSON object: {"user_id": "up"|"down", ...}
+    voted_by: str = Field(default="{}", sa_column=Column(Text, nullable=False, default="{}"))
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     owner: Optional[User] = Relationship(back_populates="notes")
@@ -144,6 +149,32 @@ class NoteTag(SQLModel, table=True):
     tag: str = Field(sa_column=Column(String(50), nullable=False, index=True))  # indexed for fast search
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     note: Optional[Note] = Relationship(back_populates="tags")
+
+
+# Track note views per user for rate limiting (prevents view count manipulation)
+class NoteViewLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    note_id: int = Field(sa_column=Column(Integer, ForeignKey("note.id"), nullable=False, index=True))
+    user_id: int = Field(sa_column=Column(Integer, ForeignKey("user.id"), nullable=False, index=True))
+    viewed_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class NoteRead(SQLModel):
+    id: int
+    user_id: int
+    title: Optional[str] = None
+    subject: Optional[str] = None
+    visibility: str
+    views: int
+    upvotes: int
+    downvotes: int
+    user_vote: Optional[str] = None  # "up", "down", or None
+    content_file_id: Optional[int] = None
+    attachments: List[dict] = []
+    tags: List[str] = []
+    created_at: datetime
+    updated_at: datetime
+
 
 # Email verification models
 class EmailVerificationRequest(SQLModel):
@@ -180,11 +211,20 @@ class Post(SQLModel, table=True):
     author_name: Optional[str] = Field(default=None, sa_column=Column(String(120), nullable=True))
     tags: str = Field(default="[]", sa_column=Column(String(500), nullable=False))
     views: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    likes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    shares: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    liked_by: str = Field(default="[]", sa_column=Column(String(10000), nullable=False))
+    upvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    downvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    # JSON object: {"user_id": "up"|"down", ...}
+    voted_by: str = Field(default="{}", sa_column=Column(Text, nullable=False, default="{}"))
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+# Track post views per user for rate limiting
+class PostViewLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    post_id: int = Field(sa_column=Column(Integer, ForeignKey("post.id"), nullable=False, index=True))
+    user_id: int = Field(sa_column=Column(Integer, ForeignKey("user.id"), nullable=False, index=True))
+    viewed_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
 
 
 class PostCreate(SQLModel):
@@ -201,9 +241,9 @@ class PostRead(SQLModel):
     author_name: Optional[str] = None
     tags: List[str] = []
     views: int
-    likes: int
-    shares: int
-    liked_by_user: bool = False
+    upvotes: int
+    downvotes: int
+    user_vote: Optional[str] = None  # "up", "down", or None
     comment_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -215,8 +255,9 @@ class Comment(SQLModel, table=True):
     user_id: int = Field(sa_column=Column(Integer, ForeignKey("user.id"), nullable=False, index=True))
     user_name: str = Field(sa_column=Column(String(120), nullable=False))
     content: str = Field(sa_column=Column(String(5000), nullable=False))
-    likes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
-    liked_by: str = Field(default="[]", sa_column=Column(String(10000), nullable=False, default="[]"))
+    upvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    downvotes: int = Field(default=0, sa_column=Column(Integer, nullable=False, default=0))
+    voted_by: str = Field(default="{}", sa_column=Column(Text, nullable=False, default="{}"))
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False))
 
@@ -231,7 +272,8 @@ class CommentRead(SQLModel):
     user_id: int
     user_name: str
     content: str
-    likes: int
-    liked_by_user: bool = False
+    upvotes: int
+    downvotes: int
+    user_vote: Optional[str] = None  # "up", "down", or None
     created_at: datetime
     updated_at: datetime

@@ -8,7 +8,8 @@ interface Comment {
     postTitle?: string;
     postType?: 'note' | 'question' | 'discussion';
     subject?: string;
-    likes?: number;
+    upvotes?: number;
+    downvotes?: number;
     replies?: number;
     isEdited?: boolean;
 }
@@ -225,10 +226,10 @@ const CommentsPopup: React.FC<CommentsPopupProps> = ({ isOpen, onClose, comments
                                 <div className="comment-stats-popup">
                                     <div className="comment-engagement">
                                         <div className="stat-item">
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                                <path d="M8 1l2.5 5 5.5.5-4 4 1 5.5L8 13l-5 2.5 1-5.5-4-4 5.5-.5L8 1z" stroke="currentColor" strokeWidth="1" fill="none"/>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" stroke="currentColor" strokeWidth="1" fill="none"/>
                                             </svg>
-                                            <span>{comment.likes || 0} likes</span>
+                                            <span>{comment.upvotes || 0} upvotes</span>
                                         </div>
                                         <div className="stat-item">
                                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

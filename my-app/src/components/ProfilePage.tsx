@@ -139,7 +139,7 @@ const ProfilePage: React.FC = () => {
             if (!response.ok) throw new Error('Failed to fetch posts');
             const allPosts = await response.json();
             const interacted = allPosts.filter((post: Post) => 
-                post.liked_by_user || post.author_id === userId
+                post.user_vote !== null || post.author_id === userId
             );
             setInteractedPosts(interacted);
         } catch (err) {
@@ -848,8 +848,9 @@ const ProfilePage: React.FC = () => {
                                         >
                                             <div className="item-title">{post.title}</div>
                                             <div className="item-meta">
-                                                {post.liked_by_user && <span className="badge liked">❤️ Liked</span>}
-                                                <span className="badge">{post.likes} likes</span>
+                                                {post.user_vote === 'up' && <span className="badge liked">👍 Upvoted</span>}
+                                                {post.user_vote === 'down' && <span className="badge disliked">👎 Downvoted</span>}
+                                                <span className="badge">{post.upvotes} upvotes</span>
                                                 <span className="badge">{post.comment_count} comments</span>
                                                 <span className="muted">by @{post.author_name}</span>
                                             </div>

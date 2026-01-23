@@ -6,9 +6,9 @@ export interface Post {
   author_name?: string;
   tags: string[];
   views: number;
-  likes: number;
-  shares: number;
-  liked_by_user: boolean;
+  upvotes: number;
+  downvotes: number;
+  user_vote: "up" | "down" | null;
   comment_count: number;
   created_at: string;
   updated_at: string;

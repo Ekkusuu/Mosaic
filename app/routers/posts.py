@@ -2,14 +2,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 
 from app.db import get_session
-from app.models import Post, PostCreate, PostRead, User, Comment, CommentCreate, CommentRead
+from app.models import Post, PostCreate, PostRead, User, Comment, CommentCreate, CommentRead, PostViewLog
 from app.security import get_current_user
 
 router = APIRouter()
+
+# View cooldown in seconds (1 hour = 3600 seconds)
+VIEW_COOLDOWN_SECONDS = 3600
 
 
 def utcnow() -> datetime:
@@ -125,9 +128,9 @@ def create_post(
         author_name=post.author_name,
         tags=json.loads(post.tags),
         views=post.views,
-        likes=post.likes,
-        shares=post.shares,
-        liked_by_user=False,
+        upvotes=post.upvotes,
+        downvotes=post.downvotes,
+        user_vote=None,
         comment_count=0,
         created_at=post.created_at,
         updated_at=post.updated_at
@@ -152,7 +155,8 @@ def get_posts(
     
     result = []
     for post in posts:
-        liked_by = json.loads(post.liked_by) if post.liked_by else []
+        voted_by = json.loads(post.voted_by) if post.voted_by else {}
+        user_vote = voted_by.get(str(current_user.id)) if current_user else None
         comment_count = session.exec(select(Comment).where(Comment.post_id == post.id)).all()
         
         result.append(PostRead(
@@ -163,9 +167,9 @@ def get_posts(
             author_name=post.author_name,
             tags=json.loads(post.tags) if post.tags else [],
             views=post.views,
-            likes=post.likes,
-            shares=post.shares,
-            liked_by_user=current_user.id in liked_by if current_user else False,
+            upvotes=post.upvotes,
+            downvotes=post.downvotes,
+            user_vote=user_vote,
             comment_count=len(comment_count),
             created_at=post.created_at,
             updated_at=post.updated_at
@@ -187,12 +191,27 @@ def get_post(
             detail="Post not found"
         )
     
-    post.views += 1
-    session.add(post)
-    session.commit()
-    session.refresh(post)
+    # Rate-limited view increment
+    if current_user:
+        cutoff_time = utcnow() - timedelta(seconds=VIEW_COOLDOWN_SECONDS)
+        recent_view = session.exec(
+            select(PostViewLog)
+            .where(PostViewLog.post_id == post_id)
+            .where(PostViewLog.user_id == current_user.id)
+            .where(PostViewLog.viewed_at > cutoff_time)
+        ).first()
+        
+        if not recent_view:
+            # Log the view and increment
+            view_log = PostViewLog(post_id=post_id, user_id=current_user.id)
+            session.add(view_log)
+            post.views += 1
+            session.add(post)
+            session.commit()
+            session.refresh(post)
     
-    liked_by = json.loads(post.liked_by) if post.liked_by else []
+    voted_by = json.loads(post.voted_by) if post.voted_by else {}
+    user_vote = voted_by.get(str(current_user.id)) if current_user else None
     comment_count = session.exec(select(Comment).where(Comment.post_id == post.id)).all()
     
     return PostRead(
@@ -203,9 +222,9 @@ def get_post(
         author_name=post.author_name,
         tags=json.loads(post.tags) if post.tags else [],
         views=post.views,
-        likes=post.likes,
-        shares=post.shares,
-        liked_by_user=current_user.id in liked_by if current_user else False,
+        upvotes=post.upvotes,
+        downvotes=post.downvotes,
+        user_vote=user_vote,
         comment_count=len(comment_count),
         created_at=post.created_at,
         updated_at=post.updated_at
@@ -236,12 +255,20 @@ def delete_post(
     return None
 
 
-@router.post("/{post_id}/like", response_model=PostRead)
-def like_post(
+@router.post("/{post_id}/vote", response_model=PostRead)
+def vote_post(
     post_id: int,
+    vote_type: str,  # "up" or "down"
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
+    """Vote on a post (upvote or downvote). Toggle behavior."""
+    if vote_type not in ("up", "down"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid vote type. Must be 'up' or 'down'"
+        )
+    
     post = session.get(Post, post_id)
     if not post:
         raise HTTPException(
@@ -249,16 +276,38 @@ def like_post(
             detail="Post not found"
         )
     
-    liked_by = json.loads(post.liked_by) if post.liked_by else []
+    voted_by = json.loads(post.voted_by) if post.voted_by else {}
+    user_id_str = str(current_user.id)
+    current_vote = voted_by.get(user_id_str)
     
-    if current_user.id in liked_by:
-        liked_by.remove(current_user.id)
-        post.likes = max(0, post.likes - 1)
+    if current_vote == vote_type:
+        # Same vote - remove it (toggle off)
+        del voted_by[user_id_str]
+        if vote_type == "up":
+            post.upvotes = max(0, post.upvotes - 1)
+        else:
+            post.downvotes = max(0, post.downvotes - 1)
+        new_vote = None
+    elif current_vote:
+        # Different vote - switch it
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            post.upvotes += 1
+            post.downvotes = max(0, post.downvotes - 1)
+        else:
+            post.downvotes += 1
+            post.upvotes = max(0, post.upvotes - 1)
+        new_vote = vote_type
     else:
-        liked_by.append(current_user.id)
-        post.likes += 1
+        # No current vote - add it
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            post.upvotes += 1
+        else:
+            post.downvotes += 1
+        new_vote = vote_type
     
-    post.liked_by = json.dumps(liked_by)
+    post.voted_by = json.dumps(voted_by)
     session.add(post)
     session.commit()
     session.refresh(post)
@@ -273,33 +322,13 @@ def like_post(
         author_name=post.author_name,
         tags=json.loads(post.tags) if post.tags else [],
         views=post.views,
-        likes=post.likes,
-        shares=post.shares,
-        liked_by_user=current_user.id in liked_by,
+        upvotes=post.upvotes,
+        downvotes=post.downvotes,
+        user_vote=new_vote,
         comment_count=len(comment_count),
         created_at=post.created_at,
         updated_at=post.updated_at
     )
-
-
-@router.post("/{post_id}/share")
-def share_post(
-    post_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user)
-):
-    post = session.get(Post, post_id)
-    if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Post not found"
-        )
-    
-    post.shares += 1
-    session.add(post)
-    session.commit()
-    
-    return {"message": "Post shared successfully", "shares": post.shares}
 
 
 @router.get("/{post_id}/comments", response_model=List[CommentRead])
@@ -309,20 +338,22 @@ def get_comments(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     comments = session.exec(
-        select(Comment).where(Comment.post_id == post_id).order_by(Comment.likes.desc(), Comment.created_at.desc())
+        select(Comment).where(Comment.post_id == post_id).order_by(Comment.upvotes.desc(), Comment.created_at.desc())
     ).all()
     
     result = []
     for comment in comments:
-        liked_by = json.loads(comment.liked_by) if comment.liked_by else []
+        voted_by = json.loads(comment.voted_by) if comment.voted_by else {}
+        user_vote = voted_by.get(str(current_user.id)) if current_user else None
         result.append(CommentRead(
             id=comment.id,
             post_id=comment.post_id,
             user_id=comment.user_id,
             user_name=comment.user_name,
             content=comment.content,
-            likes=comment.likes,
-            liked_by_user=current_user.id in liked_by if current_user else False,
+            upvotes=comment.upvotes,
+            downvotes=comment.downvotes,
+            user_vote=user_vote,
             created_at=comment.created_at,
             updated_at=comment.updated_at
         ))
@@ -362,8 +393,9 @@ def create_comment(
         user_id=current_user.id,
         user_name=current_user.name,
         content=content,
-        likes=0,
-        liked_by="[]",
+        upvotes=0,
+        downvotes=0,
+        voted_by="{}",
         created_at=utcnow(),
         updated_at=utcnow()
     )
@@ -378,8 +410,9 @@ def create_comment(
         user_id=comment.user_id,
         user_name=comment.user_name,
         content=comment.content,
-        likes=comment.likes,
-        liked_by_user=False,
+        upvotes=comment.upvotes,
+        downvotes=comment.downvotes,
+        user_vote=None,
         created_at=comment.created_at,
         updated_at=comment.updated_at
     )
@@ -409,12 +442,20 @@ def delete_comment(
     return None
 
 
-@router.post("/comments/{comment_id}/like", response_model=CommentRead)
-def like_comment(
+@router.post("/comments/{comment_id}/vote", response_model=CommentRead)
+def vote_comment(
     comment_id: int,
+    vote_type: str,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
+    """Vote on a comment. vote_type must be 'up' or 'down'."""
+    if vote_type not in ("up", "down"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="vote_type must be 'up' or 'down'"
+        )
+    
     comment = session.get(Comment, comment_id)
     if not comment:
         raise HTTPException(
@@ -422,16 +463,38 @@ def like_comment(
             detail="Comment not found"
         )
     
-    liked_by = json.loads(comment.liked_by) if comment.liked_by else []
+    voted_by = json.loads(comment.voted_by) if comment.voted_by else {}
+    user_id_str = str(current_user.id)
+    current_vote = voted_by.get(user_id_str)
     
-    if current_user.id in liked_by:
-        liked_by.remove(current_user.id)
-        comment.likes = max(0, comment.likes - 1)
+    if current_vote == vote_type:
+        # Remove the vote (toggle off)
+        del voted_by[user_id_str]
+        if vote_type == "up":
+            comment.upvotes = max(0, comment.upvotes - 1)
+        else:
+            comment.downvotes = max(0, comment.downvotes - 1)
+        new_user_vote = None
+    elif current_vote is not None:
+        # Switching vote
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            comment.upvotes += 1
+            comment.downvotes = max(0, comment.downvotes - 1)
+        else:
+            comment.downvotes += 1
+            comment.upvotes = max(0, comment.upvotes - 1)
+        new_user_vote = vote_type
     else:
-        liked_by.append(current_user.id)
-        comment.likes += 1
+        # New vote
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            comment.upvotes += 1
+        else:
+            comment.downvotes += 1
+        new_user_vote = vote_type
     
-    comment.liked_by = json.dumps(liked_by)
+    comment.voted_by = json.dumps(voted_by)
     session.add(comment)
     session.commit()
     session.refresh(comment)
@@ -442,8 +505,9 @@ def like_comment(
         user_id=comment.user_id,
         user_name=comment.user_name,
         content=comment.content,
-        likes=comment.likes,
-        liked_by_user=current_user.id in liked_by,
+        upvotes=comment.upvotes,
+        downvotes=comment.downvotes,
+        user_vote=new_user_vote,
         created_at=comment.created_at,
         updated_at=comment.updated_at
     )
