@@ -6,7 +6,7 @@ import hashlib
 import zstandard as zstd
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional, List
@@ -201,6 +201,139 @@ def _atomic_write(stream, dest_dir: Path, stored_name: str) -> tuple[Path, int, 
 
 
 router = APIRouter()
+
+
+@router.get("/public")
+def list_public_notes(
+    request: Request,
+    session: Session = Depends(get_session),
+    tags: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    List public notes, optionally filtered by tags.
+    
+    - **tags**: Comma-separated list of tags to filter by
+    - **limit**: Maximum number of notes to return
+    - **offset**: Number of notes to skip
+    """
+    from app.models import NoteTag, User, StudentProfile
+    import json
+    
+    # Get current user if authenticated (for user_vote)
+    current_user_id = None
+    try:
+        user = _current_user(request, session)
+        current_user_id = user.id
+    except:
+        pass  # Anonymous user
+    
+    # Base query for public notes
+    query = select(NoteModel).where(NoteModel.visibility == "public")
+    
+    # Filter by tags if provided
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            # Get note IDs that have any of the specified tags
+            tag_query = select(NoteTag.note_id).where(NoteTag.tag.in_(tag_list)).distinct()
+            note_ids_with_tags = session.exec(tag_query).all()
+            if note_ids_with_tags:
+                query = query.where(NoteModel.id.in_(note_ids_with_tags))
+            else:
+                return {"notes": [], "total": 0}
+    
+    # Order by newest first and apply pagination
+    query = query.order_by(NoteModel.created_at.desc()).offset(offset).limit(limit)
+    notes = session.exec(query).all()
+    
+    result = []
+    for note in notes:
+        # Get associated files
+        files = session.exec(
+            select(FileModel).where(FileModel.note_id == note.id)
+        ).all()
+        
+        content_file = None
+        attachments = []
+        for file in files:
+            if file.file_type == "content":
+                content_file = file
+            elif file.file_type == "attachment":
+                attachments.append({
+                    "id": file.id,
+                    "filename": file.filename,
+                    "size": file.size
+                })
+        
+        # Get tags
+        note_tags = session.exec(
+            select(NoteTag).where(NoteTag.note_id == note.id)
+        ).all()
+        tag_list = [tag.tag for tag in note_tags]
+        
+        # Get author info
+        author_user = session.get(User, note.user_id)
+        profile = session.exec(
+            select(StudentProfile).where(StudentProfile.user_id == note.user_id)
+        ).first()
+        
+        # Check if current user voted on this note
+        user_vote = None
+        if current_user_id:
+            voted_by = json.loads(note.voted_by) if note.voted_by else {}
+            user_vote = voted_by.get(str(current_user_id))
+        
+        # Create a summary from the note content (first 150 chars)
+        summary = ""
+        if content_file:
+            try:
+                file_path = Path(UPLOADS_DIR) / content_file.stored_name
+                if file_path.exists():
+                    content = file_path.read_text(encoding='utf-8')[:300]
+                    # Strip HTML tags for summary
+                    import re
+                    summary = re.sub(r'<[^>]+>', '', content)[:150]
+                    if len(content) > 150:
+                        summary += "..."
+            except:
+                summary = ""
+        
+        result.append({
+            "id": note.id,
+            "title": note.title,
+            "subject": note.subject,
+            "visibility": note.visibility,
+            "summary": summary,
+            "views": note.views,
+            "upvotes": note.upvotes,
+            "downvotes": note.downvotes,
+            "user_vote": user_vote,
+            "content_file_id": content_file.id if content_file else None,
+            "attachments": attachments,
+            "tags": tag_list,
+            "author": {
+                "name": profile.name if profile else author_user.name if author_user else "Unknown",
+                "username": profile.username if profile else None,
+            },
+            "created_at": note.created_at.isoformat(),
+            "updated_at": note.updated_at.isoformat(),
+        })
+    
+    # Get total count for pagination
+    count_query = select(NoteModel).where(NoteModel.visibility == "public")
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            tag_query = select(NoteTag.note_id).where(NoteTag.tag.in_(tag_list)).distinct()
+            note_ids_with_tags = session.exec(tag_query).all()
+            if note_ids_with_tags:
+                count_query = count_query.where(NoteModel.id.in_(note_ids_with_tags))
+    total = len(session.exec(count_query).all())
+    
+    return {"notes": result, "total": total}
+
 
 @router.post("/", status_code=201)
 def create_note(
@@ -541,11 +674,20 @@ def list_notes(
         ).all()
         tag_list = [tag.tag for tag in tags]
         
+        # Parse voted_by to check if current user voted on this note
+        import json
+        voted_by = json.loads(note.voted_by) if note.voted_by else {}
+        user_vote = voted_by.get(str(user.id))
+        
         result.append({
             "id": note.id,
             "title": note.title,
             "subject": note.subject,
             "visibility": note.visibility,
+            "views": note.views,
+            "upvotes": note.upvotes,
+            "downvotes": note.downvotes,
+            "user_vote": user_vote,
             "content_file_id": content_file.id if content_file else None,
             "attachments": attachments,
             "tags": tag_list,
@@ -599,11 +741,20 @@ def get_note(
     ).all()
     tag_list = [tag.tag for tag in tags]
     
+    # Parse voted_by to check if current user voted on this note
+    import json
+    voted_by = json.loads(note.voted_by) if note.voted_by else {}
+    user_vote = voted_by.get(str(user.id))
+    
     return {
         "id": note.id,
         "title": note.title,
         "subject": note.subject,
         "visibility": note.visibility,
+        "views": note.views,
+        "upvotes": note.upvotes,
+        "downvotes": note.downvotes,
+        "user_vote": user_vote,
         "content_file_id": content_file.id if content_file else None,
         "attachments": attachments,
         "tags": tag_list,
@@ -865,3 +1016,135 @@ def update_note(
         except Exception as e:
             session.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
+
+
+@router.post("/{note_id}/vote")
+def vote_note(
+    note_id: int,
+    vote_type: str,  # "up" or "down"
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Vote on a note (upvote or downvote). Toggle behavior:
+    - If already voted same way, removes the vote
+    - If already voted opposite way, switches the vote
+    - If not voted, adds the vote
+    """
+    import json
+    user = _current_user(request, session)
+    
+    if vote_type not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="Invalid vote type. Must be 'up' or 'down'")
+    
+    note = session.get(NoteModel, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    # Check if user can view this note (must be public or owned by user)
+    if note.user_id != user.id and note.visibility != "public":
+        raise HTTPException(status_code=403, detail="Not authorized to vote on this note")
+    
+    voted_by = json.loads(note.voted_by) if note.voted_by else {}
+    user_id_str = str(user.id)
+    current_vote = voted_by.get(user_id_str)
+    
+    if current_vote == vote_type:
+        # Same vote - remove it (toggle off)
+        del voted_by[user_id_str]
+        if vote_type == "up":
+            note.upvotes = max(0, note.upvotes - 1)
+        else:
+            note.downvotes = max(0, note.downvotes - 1)
+        new_vote = None
+    elif current_vote:
+        # Different vote - switch it
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            note.upvotes += 1
+            note.downvotes = max(0, note.downvotes - 1)
+        else:
+            note.downvotes += 1
+            note.upvotes = max(0, note.upvotes - 1)
+        new_vote = vote_type
+    else:
+        # No current vote - add it
+        voted_by[user_id_str] = vote_type
+        if vote_type == "up":
+            note.upvotes += 1
+        else:
+            note.downvotes += 1
+        new_vote = vote_type
+    
+    note.voted_by = json.dumps(voted_by)
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    
+    return {
+        "note_id": note.id,
+        "upvotes": note.upvotes,
+        "downvotes": note.downvotes,
+        "user_vote": new_vote
+    }
+
+
+# View cooldown in seconds (e.g., 1 hour = 3600 seconds)
+VIEW_COOLDOWN_SECONDS = 3600
+
+
+@router.post("/{note_id}/view")
+def increment_note_view(
+    note_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """
+    Increment the view count for a note.
+    Rate limited: same user can only increment view once per VIEW_COOLDOWN_SECONDS.
+    """
+    from datetime import timedelta
+    from app.models import NoteViewLog
+    
+    user = _current_user(request, session)
+    
+    note = session.get(NoteModel, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    # Check if user can view this note
+    if note.user_id != user.id and note.visibility != "public":
+        raise HTTPException(status_code=403, detail="Not authorized to view this note")
+    
+    # Check for recent view by this user
+    cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=VIEW_COOLDOWN_SECONDS)
+    recent_view = session.exec(
+        select(NoteViewLog)
+        .where(NoteViewLog.note_id == note_id)
+        .where(NoteViewLog.user_id == user.id)
+        .where(NoteViewLog.viewed_at > cutoff_time)
+    ).first()
+    
+    if recent_view:
+        # User viewed recently, don't increment
+        return {
+            "note_id": note.id,
+            "views": note.views,
+            "incremented": False
+        }
+    
+    # Log the view
+    view_log = NoteViewLog(note_id=note_id, user_id=user.id)
+    session.add(view_log)
+    
+    # Increment view count
+    note.views += 1
+    session.add(note)
+    session.commit()
+    session.refresh(note)
+    
+    return {
+        "note_id": note.id,
+        "views": note.views,
+        "incremented": True
+    }

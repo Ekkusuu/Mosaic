@@ -882,6 +882,25 @@
     flex-grow: 1;
 }
 
+.feed .note-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-bottom: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--color-border);
+}
+
+.feed .note-author {
+    opacity: 0.8;
+}
+
+.feed .note-stats {
+    opacity: 0.7;
+}
+
 /* Empty State - FIXED HEIGHT */
 .empty-state {
     padding: 60px 24px;

@@ -145,59 +145,6 @@ const MainPage: React.FC = () => {
     const closeNav = () => setIsNavOpen(false);
     const navigate = useNavigate();
 
-    const handleNoteClick = (note: any) => {
-        // Create a more detailed note object for viewing
-        const detailedNote = {
-            ...note,
-            content: `<h2>Introduction</h2>
-<p>This is a sample note about ${note.title.toLowerCase()}. In a real application, this content would come from your backend.</p>
-
-<h3>Key Points</h3>
-<ul>
-  <li>Important concept #1</li>
-  <li>Important concept #2 with <span class="document-reference" data-file-index="0">reference document</span></li>
-  <li>Important concept #3</li>
-</ul>
-
-<p>Here's an example with an <span class="image-reference" data-file-index="1">example diagram</span> that illustrates the concept.</p>
-
-<blockquote>This is a relevant quote that adds value to the discussion and provides additional context.</blockquote>
-
-<h3>Implementation Details</h3>
-<p>When implementing this concept, consider the following code example:</p>
-
-<pre><code>function example() {
-  const data = fetchData();
-  return data.map(item => ({
-    id: item.id,
-    name: item.name,
-    processed: true
-  }));
-}</code></pre>
-
-<p>Make sure to follow best practices and refer to the <span class="document-reference" data-file-index="2">official documentation</span> for more details.</p>`,
-            subject: note.tags[0] ? note.tags[0].charAt(0).toUpperCase() + note.tags[0].slice(1) : 'General',
-            visibility: 'Public',
-            author: {
-                name: 'John Doe',
-                username: 'johndoe',
-                honorLevel: 5
-            },
-            createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date().toISOString(),
-            views: Math.floor(Math.random() * 1000) + 50,
-            likes: Math.floor(Math.random() * 100) + 10,
-            attachments: [
-                { name: 'reference-document.pdf' },
-                { name: 'example-diagram.png' },
-                { name: 'official-docs.pdf' }
-            ]
-        };
-
-        setSelectedNote(detailedNote);
-        setIsNoteViewerOpen(true);
-    };
-
     const closeNoteViewer = () => {
         setIsNoteViewerOpen(false);
         setSelectedNote(null);
@@ -243,6 +190,12 @@ const MainPage: React.FC = () => {
             
             const noteData = await response.json();
             
+            // Increment view count
+            fetch(`${API_BASE_URL}/notes/${note.id}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            }).catch(err => console.error('Failed to increment view:', err));
+            
             // Fetch the content file
             let content = '';
             if (noteData.content_file_id) {
@@ -264,8 +217,10 @@ const MainPage: React.FC = () => {
                 author: note.author,
                 createdAt: noteData.created_at,
                 updatedAt: noteData.updated_at,
-                views: 0,
-                likes: 0,
+                views: (noteData.views || 0) + 1, // Show incremented view
+                upvotes: noteData.upvotes || 0,
+                downvotes: noteData.downvotes || 0,
+                user_vote: noteData.user_vote || null,
                 tags: noteData.tags || [],
                 attachments: noteData.attachments || []
             };
@@ -277,6 +232,31 @@ const MainPage: React.FC = () => {
             console.error('Error viewing note:', error);
             alert('Failed to load note');
         }
+    };
+
+    const handleVoteNote = async (noteId: number, voteType: 'up' | 'down') => {
+        const response = await fetch(`${API_BASE_URL}/notes/${noteId}/vote?vote_type=${voteType}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to vote on note');
+        }
+        
+        const result = await response.json();
+        
+        // Update selected note if it's the one being voted on
+        if (selectedNote && selectedNote.id === noteId) {
+            setSelectedNote({
+                ...selectedNote,
+                upvotes: result.upvotes,
+                downvotes: result.downvotes,
+                user_vote: result.user_vote
+            });
+        }
+        
+        return result;
     };
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -317,6 +297,12 @@ const MainPage: React.FC = () => {
             const noteData = event.detail?.note;
             if (noteData) {
                 try {
+                    // Increment view count
+                    fetch(`${API_BASE_URL}/notes/${noteData.id}/view`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    }).catch(err => console.error('Failed to increment view:', err));
+                    
                     // Fetch the content file if available
                     let content = '';
                     if (noteData.content_file_id) {
@@ -338,6 +324,10 @@ const MainPage: React.FC = () => {
                         author: noteData.author || { name: 'Unknown', username: 'unknown' },
                         createdAt: noteData.created_at,
                         updatedAt: noteData.updated_at,
+                        views: (noteData.views || 0) + 1,
+                        upvotes: noteData.upvotes || 0,
+                        downvotes: noteData.downvotes || 0,
+                        user_vote: noteData.user_vote || null,
                         tags: noteData.tags || [],
                         attachments: noteData.attachments || []
                     };
@@ -375,14 +365,74 @@ const MainPage: React.FC = () => {
         setActiveTab('posts');
     };
 
-    const publicNotesFeed = useMemo(
-        () => [
-            { id: 11, title: 'React component patterns', tags: ['react', 'typescript'], summary: 'Practical patterns for scalable components and hooks.' },
-            { id: 12, title: 'SQL cheat sheet', tags: ['sql', 'mysql'], summary: 'Most used selects, joins, windows, with examples.' },
-            { id: 13, title: 'Spring Boot quickstart', tags: ['spring-boot', 'java'], summary: 'Annotations, profiles, test slices, and common pitfalls.' },
-        ],
-        []
-    );
+    const [publicNotes, setPublicNotes] = useState<any[]>([]);
+    const [isLoadingPublicNotes, setIsLoadingPublicNotes] = useState(true);
+
+    const fetchPublicNotes = useCallback(async () => {
+        try {
+            setIsLoadingPublicNotes(true);
+            const response = await fetch(`${API_BASE_URL}/notes/public?limit=20`, { credentials: 'include' });
+            if (!response.ok) {
+                throw new Error('Unable to load public notes.');
+            }
+            const data = await response.json();
+            setPublicNotes(data.notes || []);
+        } catch (error) {
+            console.error('Failed to fetch public notes:', error);
+            setPublicNotes([]);
+        } finally {
+            setIsLoadingPublicNotes(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchPublicNotes();
+    }, [fetchPublicNotes]);
+
+    const handlePublicNoteClick = async (note: any) => {
+        try {
+            // Increment view count
+            fetch(`${API_BASE_URL}/notes/${note.id}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            }).catch(err => console.error('Failed to increment view:', err));
+            
+            // Fetch the content file if available
+            let content = '';
+            if (note.content_file_id) {
+                const contentResponse = await fetch(`${API_BASE_URL}/files/${note.content_file_id}`, {
+                    credentials: 'include'
+                });
+                
+                if (contentResponse.ok) {
+                    content = await contentResponse.text();
+                }
+            }
+            
+            const detailedNote = {
+                id: note.id,
+                title: note.title,
+                content: content,
+                subject: note.subject || 'General',
+                visibility: note.visibility,
+                author: note.author || { name: 'Unknown', username: 'unknown' },
+                createdAt: note.created_at,
+                updatedAt: note.updated_at,
+                views: (note.views || 0) + 1,
+                upvotes: note.upvotes || 0,
+                downvotes: note.downvotes || 0,
+                user_vote: note.user_vote || null,
+                tags: note.tags || [],
+                attachments: note.attachments || []
+            };
+            
+            setSelectedNote(detailedNote);
+            setIsNoteViewerOpen(true);
+        } catch (error) {
+            console.error('Error viewing public note:', error);
+            alert('Failed to load note');
+        }
+    };
 
     return (
         <div className="main-page">
@@ -539,10 +589,16 @@ const MainPage: React.FC = () => {
                                                         </div>
                                                         <div className="post-stats">
                               <span className="stat-item">
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                  <path d="M8 14l-5-5c-1-1-1-2.5 0-3.5s2.5-1 3.5 0L8 7l1.5-1.5c1-1 2.5-1 3.5 0s1 2.5 0 3.5L8 14z"/>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
                                 </svg>
-                                  {post.likes}
+                                  {post.upvotes}
+                              </span>
+                              <span className="stat-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+                                </svg>
+                                  {post.downvotes}
                               </span>
                                                             <span className="stat-item">
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -571,26 +627,40 @@ const MainPage: React.FC = () => {
                             </>
                         ) : activeTab === 'notes' ? (
                             <>
-                                <div className="section-header"><h2 className="section-title">Public notes for your tags</h2></div>
+                                <div className="section-header"><h2 className="section-title">Public notes</h2></div>
                                 <div className="notes-container">
-                                    <div className="card-grid">
-                                        {publicNotesFeed.map(note => (
-                                            <article
-                                                key={note.id}
-                                                className="note-card"
-                                                onClick={() => handleNoteClick(note)}
-                                                style={{ cursor: 'pointer' }}
-                                            >
-                                                <div className="card-title">{note.title}</div>
-                                                <p className="note-summary">{note.summary}</p>
-                                                <div className="tags">
-                                                    {note.tags.map(t => (
-                                                        <span key={t} className="tag">{t}</span>
-                                                    ))}
-                                                </div>
-                                            </article>
-                                        ))}
-                                    </div>
+                                    {isLoadingPublicNotes ? (
+                                        <div className="feed-status" role="status">Loading notes…</div>
+                                    ) : publicNotes.length === 0 ? (
+                                        <div className="feed-status" role="status">
+                                            No public notes available yet. Be the first to share!
+                                        </div>
+                                    ) : (
+                                        <div className="card-grid">
+                                            {publicNotes.map(note => (
+                                                <article
+                                                    key={note.id}
+                                                    className="note-card"
+                                                    onClick={() => handlePublicNoteClick(note)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="card-title">{note.title}</div>
+                                                    <p className="note-summary">{note.summary || 'No summary available'}</p>
+                                                    <div className="note-meta">
+                                                        <span className="note-author">by {note.author?.name || 'Unknown'}</span>
+                                                        <span className="note-stats">
+                                                            👍 {note.upvotes || 0} • 👁 {note.views || 0}
+                                                        </span>
+                                                    </div>
+                                                    <div className="tags">
+                                                        {(note.tags || []).map((t: string) => (
+                                                            <span key={t} className="tag">{t}</span>
+                                                        ))}
+                                                    </div>
+                                                </article>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         ) : (
@@ -608,6 +678,7 @@ const MainPage: React.FC = () => {
                 isOpen={isNoteViewerOpen}
                 onClose={closeNoteViewer}
                 note={selectedNote}
+                onVoteNote={handleVoteNote}
             />
 
             {/* Settings Popup */}

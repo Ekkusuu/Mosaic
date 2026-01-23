@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './NoteViewer.css';
 
 interface Note {
@@ -17,17 +17,64 @@ interface Note {
     tags?: string[];
     attachments?: any[];
     views?: number;
-    likes?: number;
+    upvotes?: number;
+    downvotes?: number;
+    user_vote?: 'up' | 'down' | null;
 }
 
 interface NoteViewerProps {
     isOpen: boolean;
     onClose: () => void;
     note: Note | null;
+    onVoteNote?: (noteId: number, voteType: 'up' | 'down') => Promise<{ upvotes: number; downvotes: number; user_vote: 'up' | 'down' | null }>;
 }
 
-const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
+const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note, onVoteNote }) => {
     const contentRef = useRef<HTMLDivElement>(null);
+    const [upvotes, setUpvotes] = useState(note?.upvotes || 0);
+    const [downvotes, setDownvotes] = useState(note?.downvotes || 0);
+    const [userVote, setUserVote] = useState<'up' | 'down' | null>(note?.user_vote || null);
+    const [isVoting, setIsVoting] = useState(false);
+
+    // Update state when note changes
+    useEffect(() => {
+        if (note) {
+            setUpvotes(note.upvotes || 0);
+            setDownvotes(note.downvotes || 0);
+            setUserVote(note.user_vote || null);
+        }
+    }, [note]);
+
+    const handleVote = async (voteType: 'up' | 'down') => {
+        if (!note || isVoting) return;
+        
+        setIsVoting(true);
+        try {
+            if (onVoteNote) {
+                const result = await onVoteNote(note.id, voteType);
+                setUpvotes(result.upvotes);
+                setDownvotes(result.downvotes);
+                setUserVote(result.user_vote);
+            } else {
+                // Fallback to direct API call if no handler provided
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                const response = await fetch(`${API_BASE_URL}/notes/${note.id}/vote?vote_type=${voteType}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    setUpvotes(result.upvotes);
+                    setDownvotes(result.downvotes);
+                    setUserVote(result.user_vote);
+                }
+            }
+        } catch (error) {
+            console.error('Error voting on note:', error);
+        } finally {
+            setIsVoting(false);
+        }
+    };
 
     // Convert markdown attachment syntax to HTML references for viewing
     const markdownToHtml = (markdown: string): string => {
@@ -335,11 +382,17 @@ const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
                                     </svg>
                                     {formatViews(note.views)} views
                                 </span>
-                                <span className="note-stat">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                <span className={`note-stat ${userVote === 'up' ? 'voted-up' : ''}`}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill={userVote === 'up' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                                     </svg>
-                                    {note.likes || 0} likes
+                                    {upvotes}
+                                </span>
+                                <span className={`note-stat ${userVote === 'down' ? 'voted-down' : ''}`}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill={userVote === 'down' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                                    </svg>
+                                    {downvotes}
                                 </span>
                             </div>
                         </div>
@@ -443,21 +496,27 @@ const NoteViewer: React.FC<NoteViewerProps> = ({ isOpen, onClose, note }) => {
                 {/* Footer Actions */}
                 <div className="note-viewer-footer">
                     <div className="note-actions">
-                        <button className="action-btn like-btn">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        <button 
+                            className={`action-btn upvote-btn ${userVote === 'up' ? 'voted' : ''}`}
+                            onClick={() => handleVote('up')}
+                            disabled={isVoting}
+                            title="Upvote"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill={userVote === 'up' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                             </svg>
-                            Like
+                            {upvotes}
                         </button>
-                        <button className="action-btn share-btn">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="18" cy="5" r="3"></circle>
-                                <circle cx="6" cy="12" r="3"></circle>
-                                <circle cx="18" cy="19" r="3"></circle>
-                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        <button 
+                            className={`action-btn downvote-btn ${userVote === 'down' ? 'voted' : ''}`}
+                            onClick={() => handleVote('down')}
+                            disabled={isVoting}
+                            title="Downvote"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill={userVote === 'down' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                             </svg>
-                            Share
+                            {downvotes}
                         </button>
                         <button className="action-btn bookmark-btn">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

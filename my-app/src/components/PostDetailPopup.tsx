@@ -8,8 +8,9 @@ interface Comment {
     user_id: number;
     user_name: string;
     content: string;
-    likes: number;
-    liked_by_user: boolean;
+    upvotes: number;
+    downvotes: number;
+    user_vote: "up" | "down" | null;
     created_at: string;
     updated_at: string;
 }
@@ -70,37 +71,18 @@ const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ isOpen, onClose, post
         }
     };
 
-    const handleLike = async () => {
+    const handleVote = async (voteType: "up" | "down") => {
         if (!postId || !post) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/posts/${postId}/like`, {
+            const response = await fetch(`${API_BASE_URL}/posts/${postId}/vote?vote_type=${voteType}`, {
                 method: 'POST',
                 credentials: 'include'
             });
-            if (!response.ok) throw new Error('Failed to like post');
+            if (!response.ok) throw new Error('Failed to vote on post');
             const updatedPost = await response.json();
             setPost(updatedPost);
         } catch (err) {
-            console.error('Failed to like post:', err);
-        }
-    };
-
-    const handleShare = async () => {
-        if (!postId) return;
-        try {
-            const response = await fetch(`${API_BASE_URL}/posts/${postId}/share`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            if (!response.ok) throw new Error('Failed to share post');
-            const data = await response.json();
-            setShareMessage('Post shared successfully!');
-            setTimeout(() => setShareMessage(null), 3000);
-            if (post) {
-                setPost({ ...post, shares: data.shares });
-            }
-        } catch (err) {
-            console.error('Failed to share post:', err);
+            console.error('Failed to vote on post:', err);
         }
     };
 
@@ -148,17 +130,17 @@ const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ isOpen, onClose, post
         }
     };
 
-    const handleLikeComment = async (commentId: number) => {
+    const handleVoteComment = async (commentId: number, voteType: "up" | "down") => {
         try {
-            const response = await fetch(`${API_BASE_URL}/posts/comments/${commentId}/like`, {
+            const response = await fetch(`${API_BASE_URL}/posts/comments/${commentId}/vote?vote_type=${voteType}`, {
                 method: 'POST',
                 credentials: 'include'
             });
-            if (!response.ok) throw new Error('Failed to like comment');
+            if (!response.ok) throw new Error('Failed to vote on comment');
             const updatedComment = await response.json();
             setComments(comments.map(c => c.id === commentId ? updatedComment : c));
         } catch (err) {
-            console.error('Failed to like comment:', err);
+            console.error('Failed to vote on comment:', err);
         }
     };
 
@@ -225,27 +207,30 @@ const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ isOpen, onClose, post
                                 
                                 <div className="post-stats">
                                     <span>{post.views} views</span>
-                                    <span>{post.likes} likes</span>
-                                    <span>{post.shares} shares</span>
+                                    <span>{post.upvotes} upvotes</span>
+                                    <span>{post.downvotes} downvotes</span>
                                     <span>{post.comment_count} comments</span>
                                 </div>
                                 
                                 <div className="post-actions">
                                     <button 
-                                        onClick={handleLike} 
-                                        className={`action-btn ${post.liked_by_user ? 'active' : ''}`}
+                                        onClick={() => handleVote("up")} 
+                                        className={`action-btn upvote-btn ${post.user_vote === 'up' ? 'active' : ''}`}
                                     >
-                                        <svg width="20" height="20" viewBox="0 0 20 20" fill={post.liked_by_user ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                                            <path d="M10 17.5l-6.25-6.25c-1.25-1.25-1.25-3.5 0-4.75 1.25-1.25 3.5-1.25 4.75 0L10 8l1.5-1.5c1.25-1.25 3.5-1.25 4.75 0 1.25 1.25 1.25 3.5 0 4.75L10 17.5z"/>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill={post.user_vote === 'up' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                                            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
                                         </svg>
-                                        <span>{post.liked_by_user ? 'Liked' : 'Like'}</span>
+                                        <span>{post.upvotes}</span>
                                     </button>
                                     
-                                    <button onClick={handleShare} className="action-btn">
-                                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M15 6.67V3.33L20 8l-5 4.67V9.33H10v-2.66h5zM8 10.67V8H3v9h12v-4H8v-2.33z"/>
+                                    <button 
+                                        onClick={() => handleVote("down")} 
+                                        className={`action-btn downvote-btn ${post.user_vote === 'down' ? 'active' : ''}`}
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill={post.user_vote === 'down' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                                            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
                                         </svg>
-                                        <span>Share</span>
+                                        <span>{post.downvotes}</span>
                                     </button>
                                 </div>
                             </div>
@@ -283,13 +268,22 @@ const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ isOpen, onClose, post
                                             <div className="comment-content">{comment.content}</div>
                                             <div className="comment-actions">
                                                 <button 
-                                                    onClick={() => handleLikeComment(comment.id)}
-                                                    className={`like-comment-btn ${comment.liked_by_user ? 'liked' : ''}`}
+                                                    onClick={() => handleVoteComment(comment.id, "up")}
+                                                    className={`vote-comment-btn upvote ${comment.user_vote === 'up' ? 'active' : ''}`}
                                                 >
-                                                    <svg width="14" height="14" viewBox="0 0 16 16" fill={comment.liked_by_user ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-                                                        <path d="M8 14s-6-4.5-6-8a3 3 0 0 1 6-2 3 3 0 0 1 6 2c0 3.5-6 8-6 8z"/>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill={comment.user_vote === 'up' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
                                                     </svg>
-                                                    <span>{comment.likes}</span>
+                                                    <span>{comment.upvotes}</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleVoteComment(comment.id, "down")}
+                                                    className={`vote-comment-btn downvote ${comment.user_vote === 'down' ? 'active' : ''}`}
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill={comment.user_vote === 'down' ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                                                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+                                                    </svg>
+                                                    <span>{comment.downvotes}</span>
                                                 </button>
                                                 <button 
                                                     onClick={() => handleDeleteComment(comment.id)}
